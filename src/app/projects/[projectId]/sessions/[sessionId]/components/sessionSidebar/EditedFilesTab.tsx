@@ -111,8 +111,12 @@ export const EditedFilesTab: FC<{
   // Get cwd from the first conversation entry that has it
   const cwd = useMemo(() => {
     for (const conv of conversations) {
-      if ("cwd" in conv && typeof conv.cwd === "string") {
-        return conv.cwd;
+      if (conv.type === "session_meta") {
+        return conv.payload.cwd;
+      }
+
+      if (conv.type === "turn_context" && conv.payload.cwd) {
+        return conv.payload.cwd;
       }
     }
     return undefined;

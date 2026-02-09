@@ -2,15 +2,12 @@ import { FileSystem } from "@effect/platform";
 import { Context, Effect, Layer } from "effect";
 import type { ControllerResponse } from "../../../lib/effect/toEffectResponse";
 import type { InferEffect } from "../../../lib/effect/types";
-import { AgentSessionRepository } from "../../agent-session/infrastructure/AgentSessionRepository";
 import { EventBus } from "../../events/services/EventBus";
 import { SessionRepository } from "../../session/infrastructure/SessionRepository";
-import { decodeSessionId } from "../functions/id";
 import { generateSessionHtml } from "../services/ExportService";
 
 const LayerImpl = Effect.gen(function* () {
   const sessionRepository = yield* SessionRepository;
-  const agentSessionRepository = yield* AgentSessionRepository;
   const fs = yield* FileSystem.FileSystem;
   const eventBus = yield* EventBus;
 
@@ -48,11 +45,7 @@ const LayerImpl = Effect.gen(function* () {
         } as const satisfies ControllerResponse;
       }
 
-      const html = yield* generateSessionHtml(
-        session,
-        projectId,
-        agentSessionRepository,
-      );
+      const html = yield* generateSessionHtml(session, projectId);
 
       return {
         status: 200,
@@ -63,7 +56,18 @@ const LayerImpl = Effect.gen(function* () {
   const deleteSession = (options: { projectId: string; sessionId: string }) =>
     Effect.gen(function* () {
       const { projectId, sessionId } = options;
-      const sessionPath = decodeSessionId(projectId, sessionId);
+      const session = yield* sessionRepository
+        .getSession(projectId, sessionId)
+        .pipe(Effect.map((result) => result.session));
+
+      if (session === null) {
+        return {
+          status: 404,
+          response: { error: "Session not found" },
+        } as const satisfies ControllerResponse;
+      }
+
+      const sessionPath = session.jsonlFilePath;
 
       // Check if session file exists
       const exists = yield* fs.exists(sessionPath);

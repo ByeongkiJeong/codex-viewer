@@ -1,8 +1,6 @@
-/** @effect-diagnostics globalErrorInEffectFailure:skip-file */
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { FileSystem, Path } from "@effect/platform";
-import { Context, Effect, Layer, Option } from "effect";
+import { Context, Effect, Layer } from "effect";
+import { ApplicationContext } from "../../platform/services/ApplicationContext";
 import {
   type Task,
   type TaskCreate,
@@ -10,29 +8,29 @@ import {
   type TaskUpdate,
 } from "../schema";
 
-const TASKS_DIR_NAME = "tasks";
-const PROJECTS_DIR_NAME = "projects";
-const CLAUDE_DIR_NAME = ".claude";
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null;
+};
 
 export class TasksService extends Context.Tag("TasksService")<
   TasksService,
   {
     listTasks: (
-      projectPath: string,
+      projectId: string,
       specificSessionId?: string,
     ) => Effect.Effect<Task[], Error>;
     getTask: (
-      projectPath: string,
-      turnId: string,
+      projectId: string,
+      taskId: string,
       specificSessionId?: string,
     ) => Effect.Effect<Task, Error>;
     createTask: (
-      projectPath: string,
+      projectId: string,
       task: TaskCreate,
       specificSessionId?: string,
     ) => Effect.Effect<Task, Error>;
     updateTask: (
-      projectPath: string,
+      projectId: string,
       task: TaskUpdate,
       specificSessionId?: string,
     ) => Effect.Effect<Task, Error>;
@@ -43,410 +41,226 @@ export class TasksService extends Context.Tag("TasksService")<
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
+      const appContext = yield* ApplicationContext;
 
-      // Helper to find the Global Claude Directory
-      const getClaudeDir = () =>
-        Effect.succeed(join(homedir(), CLAUDE_DIR_NAME));
-
-      const normalizeProjectPath = (projectPath: string) => {
-        // e.g. /Users/foo/bar -> -Users-foo-bar
-        const normalized = projectPath.replaceAll(path.sep, "-");
-        // Ensure it starts with - if the original path started with /
-        return normalized.startsWith("-") ? normalized : `-${normalized}`;
-      };
-
-      /**
-       * Resolves the project UUID for a given project path.
-       * Returns Option.none() when:
-       * - Project metadata directory doesn't exist
-       * - No UUID file found in project metadata directory
-       * - Specific sessionId is provided but its tasks directory doesn't exist
-       * Returns Option.some(uuid) when resolution succeeds.
-       */
-      const resolveProjectUuid = (
-        projectPath: string,
-        specificSessionId?: string,
-      ): Effect.Effect<Option.Option<string>, Error> =>
+      const getProjectTasksDir = (projectId: string) =>
         Effect.gen(function* () {
-          const claudeDir = yield* getClaudeDir();
+          const codexTasksDirPath = (yield* appContext.codexPaths)
+            .codexTasksDirPath;
+          return path.join(codexTasksDirPath, projectId);
+        });
 
-          // If a specific session ID is provided, verify it exists and return it
-          if (specificSessionId) {
-            const sessionTasksDir = path.join(
-              claudeDir,
-              TASKS_DIR_NAME,
-              specificSessionId,
-            );
-            if (yield* fs.exists(sessionTasksDir)) {
-              return Option.some(specificSessionId);
-            }
-            // Return none when requested session has no tasks directory
-            return Option.none<string>();
+      const getSessionTasksDir = (projectId: string, sessionId: string) =>
+        Effect.gen(function* () {
+          const projectTasksDir = yield* getProjectTasksDir(projectId);
+          return path.join(projectTasksDir, sessionId);
+        });
+
+      const parseTaskFile = (filePath: string) =>
+        Effect.gen(function* () {
+          const content = yield* fs.readFileString(filePath);
+          const json = yield* Effect.try({
+            try: () => JSON.parse(content),
+            catch: (error) =>
+              error instanceof Error ? error : new Error(String(error)),
+          });
+
+          const parsed = TaskSchema.safeParse(json);
+          if (parsed.success) {
+            return parsed.data;
           }
 
-          // Check if the projectPath is already pointing to a metadata directory in .claude/projects
-          // Path structure: .../.claude/projects/<normalized-id>
-          const isMetadataPath =
-            projectPath.includes(join(CLAUDE_DIR_NAME, PROJECTS_DIR_NAME)) &&
-            projectPath.split(path.sep).pop()?.startsWith("-");
+          const fallbackId = path.basename(filePath).replace(/\.json$/, "");
+          const fallbackTask: Task = {
+            id:
+              isRecord(json) && typeof json.id === "string"
+                ? json.id
+                : fallbackId,
+            subject:
+              isRecord(json) && typeof json.subject === "string"
+                ? json.subject
+                : "Invalid Task Schema",
+            description: parsed.error.message,
+            status: "failed",
+            blocks: [],
+            blockedBy: [],
+          };
 
-          let projectMetaDir: string;
+          return fallbackTask;
+        });
 
-          if (isMetadataPath && (yield* fs.exists(projectPath))) {
-            projectMetaDir = projectPath;
-          } else {
-            const identifier = normalizeProjectPath(projectPath);
-            projectMetaDir = path.join(
-              claudeDir,
-              PROJECTS_DIR_NAME,
-              identifier,
-            );
+      const listTasksInSessionDir = (sessionDirPath: string) =>
+        Effect.gen(function* () {
+          if (!(yield* fs.exists(sessionDirPath))) {
+            return [] as Task[];
           }
 
-          // Check if directory exists
-          const exists = yield* fs.exists(projectMetaDir);
-          if (!exists) {
-            return Option.none<string>();
-          }
+          const files = yield* fs.readDirectory(sessionDirPath);
+          const taskFiles = files.filter((file) => file.endsWith(".json"));
 
-          // Read directory to find all UUID-like files (json, jsonl, or no extension)
-          const files = yield* fs.readDirectory(projectMetaDir);
-
-          const uuidPattern =
-            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-
-          const candidates = files.filter((f) => uuidPattern.test(f));
-
-          if (candidates.length === 0) {
-            return Option.none<string>();
-          }
-
-          // Analyze candidates: valid UUID, mtime, and whether they have a tasks directory
-          const candidateInfo = yield* Effect.all(
-            candidates.map((file) =>
-              Effect.gen(function* () {
-                const fullPath = path.join(projectMetaDir, file);
-                const stat = yield* fs.stat(fullPath);
-                const match = file.match(uuidPattern);
-                const uuid = match ? match[0] : file;
-
-                const tasksPath = path.join(claudeDir, TASKS_DIR_NAME, uuid);
-                const hasTasks = yield* fs.exists(tasksPath);
-
-                return {
-                  file,
-                  uuid,
-                  mtime: Option.getOrElse(stat.mtime, () => new Date(0)),
-                  hasTasks,
-                };
-              }),
+          const tasks = yield* Effect.all(
+            taskFiles.map((file) =>
+              parseTaskFile(path.join(sessionDirPath, file)).pipe(
+                Effect.catchAll(() => Effect.succeed(null)),
+              ),
             ),
             { concurrency: "unbounded" },
           );
 
-          // Sort logic:
-          // 1. Has tasks directory (Priority #1)
-          // 2. Newer mtime (Priority #2)
-          const sorted = candidateInfo.sort((a, b) => {
-            if (a.hasTasks && !b.hasTasks) return -1;
-            if (!a.hasTasks && b.hasTasks) return 1;
-            return b.mtime.getTime() - a.mtime.getTime();
-          });
-
-          const best = sorted[0];
-
-          if (!best) {
-            return Option.none<string>();
-          }
-
-          return Option.some(best.uuid);
-        });
-
-      /**
-       * Resolves the project UUID, but fails with an error when resolution fails.
-       * Used by operations that require a valid project (getTask, createTask, updateTask).
-       */
-      const resolveProjectUuidOrFail = (
-        projectPath: string,
-        specificSessionId?: string,
-      ): Effect.Effect<string, Error> =>
-        Effect.gen(function* () {
-          const uuidOption = yield* resolveProjectUuid(
-            projectPath,
-            specificSessionId,
-          );
-
-          if (Option.isNone(uuidOption)) {
-            if (specificSessionId) {
-              return yield* Effect.fail(
-                new Error(
-                  `Requested session ${specificSessionId} has no tasks directory`,
-                ),
-              );
-            }
-            const claudeDir = yield* getClaudeDir();
-            const identifier = normalizeProjectPath(projectPath);
-            const projectMetaDir = path.join(
-              claudeDir,
-              PROJECTS_DIR_NAME,
-              identifier,
-            );
-            return yield* Effect.fail(
-              new Error(
-                `Project metadata directory not found or no UUID: ${projectMetaDir}`,
-              ),
-            );
-          }
-
-          return uuidOption.value;
-        });
-
-      /**
-       * Gets the tasks directory path for a given project.
-       * Returns Option.none() when resolution fails.
-       * Used by listTasks for graceful handling of missing directories.
-       */
-      const getTasksDir = (
-        projectPath: string,
-        specificSessionId?: string,
-      ): Effect.Effect<Option.Option<string>, Error> =>
-        Effect.gen(function* () {
-          const claudeDir = yield* getClaudeDir();
-          const uuidOption = yield* resolveProjectUuid(
-            projectPath,
-            specificSessionId,
-          );
-
-          return Option.map(uuidOption, (uuid) =>
-            path.join(claudeDir, TASKS_DIR_NAME, uuid),
-          );
-        });
-
-      /**
-       * Gets the tasks directory path, but fails with an error when resolution fails.
-       * Used by operations that require a valid directory (getTask, createTask, updateTask).
-       */
-      const getTasksDirOrFail = (
-        projectPath: string,
-        specificSessionId?: string,
-      ): Effect.Effect<string, Error> =>
-        Effect.gen(function* () {
-          const claudeDir = yield* getClaudeDir();
-          const uuid = yield* resolveProjectUuidOrFail(
-            projectPath,
-            specificSessionId,
-          );
-          return path.join(claudeDir, TASKS_DIR_NAME, uuid);
-        });
-
-      const listTasks = (projectPath: string, specificSessionId?: string) =>
-        Effect.gen(function* () {
-          const tasksDirOption = yield* getTasksDir(
-            projectPath,
-            specificSessionId,
-          );
-
-          if (Option.isNone(tasksDirOption)) {
-            return [];
-          }
-
-          const tasksDir = tasksDirOption.value;
-
-          const exists = yield* fs.exists(tasksDir);
-          if (!exists) {
-            return [];
-          }
-
-          const files = yield* fs.readDirectory(tasksDir);
-          const tasks: Task[] = [];
-
-          for (const file of files) {
-            if (!file.endsWith(".json")) continue;
-            const content = yield* fs.readFileString(path.join(tasksDir, file));
-            try {
-              const task = JSON.parse(content);
-              // Validate with schema optionally
-              const parsed = TaskSchema.safeParse(task);
-              if (parsed.success) {
-                tasks.push(parsed.data);
-              } else {
-                console.warn(`Invalid task file ${file}:`, parsed.error);
-                // Create a fallback task for invalid schema
-                const fallbackTask: Task = {
-                  id:
-                    typeof task === "object" &&
-                    task !== null &&
-                    "id" in task &&
-                    typeof task.id === "string"
-                      ? task.id
-                      : file.replace(".json", ""),
-                  subject:
-                    typeof task === "object" &&
-                    task !== null &&
-                    "subject" in task &&
-                    typeof task.subject === "string"
-                      ? task.subject
-                      : typeof task === "object" &&
-                          task !== null &&
-                          "title" in task &&
-                          typeof task.title === "string"
-                        ? task.title
-                        : "Invalid Task Schema",
-                  description: `Validation Error: ${JSON.stringify(parsed.error.format())}. Raw: ${JSON.stringify(task)}`,
-                  status:
-                    typeof task === "object" &&
-                    task !== null &&
-                    "status" in task &&
-                    typeof task.status === "string" &&
-                    (task.status === "pending" ||
-                      task.status === "in_progress" ||
-                      task.status === "completed" ||
-                      task.status === "failed")
-                      ? task.status
-                      : "failed",
-                  blocks: [],
-                  blockedBy: [],
-                };
-                tasks.push(fallbackTask);
+          return tasks
+            .filter((task): task is Task => task !== null)
+            .toSorted((a, b) => {
+              const aId = Number(a.id);
+              const bId = Number(b.id);
+              if (Number.isNaN(aId) || Number.isNaN(bId)) {
+                return a.id.localeCompare(b.id);
               }
-            } catch (e) {
-              console.error(`Failed to parse task file ${file}`, e);
-              const fallbackTask: Task = {
-                id: file.replace(".json", ""),
-                subject: "Corrupted Task File",
-                description: String(e),
-                status: "failed",
-                blocks: [],
-                blockedBy: [],
-              };
-              tasks.push(fallbackTask);
-            }
+              return aId - bId;
+            });
+        });
+
+      const resolveSessionIdForWrite = (
+        specificSessionId: string | undefined,
+      ) => {
+        return specificSessionId ?? "default";
+      };
+
+      const listTasks = (projectId: string, specificSessionId?: string) =>
+        Effect.gen(function* () {
+          if (specificSessionId) {
+            const sessionDir = yield* getSessionTasksDir(
+              projectId,
+              specificSessionId,
+            );
+            return yield* listTasksInSessionDir(sessionDir);
           }
 
-          return tasks.sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10));
+          const projectDir = yield* getProjectTasksDir(projectId);
+          if (!(yield* fs.exists(projectDir))) {
+            return [] as Task[];
+          }
+
+          const sessionDirs = yield* fs.readDirectory(projectDir);
+          const merged = yield* Effect.all(
+            sessionDirs.map((sessionDirName) =>
+              listTasksInSessionDir(path.join(projectDir, sessionDirName)).pipe(
+                Effect.catchAll(() => Effect.succeed([])),
+              ),
+            ),
+            { concurrency: "unbounded" },
+          );
+
+          return merged.flat().toSorted((a, b) => {
+            const aId = Number(a.id);
+            const bId = Number(b.id);
+            if (Number.isNaN(aId) || Number.isNaN(bId)) {
+              return a.id.localeCompare(b.id);
+            }
+            return aId - bId;
+          });
         });
 
       const getTask = (
-        projectPath: string,
-        turnId: string,
+        projectId: string,
+        taskId: string,
         specificSessionId?: string,
       ) =>
         Effect.gen(function* () {
-          const tasksDir = yield* getTasksDirOrFail(
-            projectPath,
-            specificSessionId,
-          );
-          const taskFile = path.join(tasksDir, `${turnId}.json`);
+          const sessionId = resolveSessionIdForWrite(specificSessionId);
+          const sessionDir = yield* getSessionTasksDir(projectId, sessionId);
+          const filePath = path.join(sessionDir, `${taskId}.json`);
 
-          const exists = yield* fs.exists(taskFile);
-          if (!exists) {
-            return yield* Effect.fail(new Error(`Task ${turnId} not found`));
+          if (!(yield* fs.exists(filePath))) {
+            return yield* Effect.fail(new Error(`Task ${taskId} not found`));
           }
 
-          const content = yield* fs.readFileString(taskFile);
-          const task = JSON.parse(content);
-          return yield* Effect.try(() => TaskSchema.parse(task));
+          return yield* parseTaskFile(filePath);
         });
 
       const createTask = (
-        projectPath: string,
-        turnDef: TaskCreate,
+        projectId: string,
+        task: TaskCreate,
         specificSessionId?: string,
       ) =>
         Effect.gen(function* () {
-          const tasksDir = yield* getTasksDirOrFail(
-            projectPath,
-            specificSessionId,
-          );
-          // Ensure directory exists
-          const dirExists = yield* fs.exists(tasksDir);
-          if (!dirExists) {
-            yield* fs.makeDirectory(tasksDir, { recursive: true });
+          const sessionId = resolveSessionIdForWrite(specificSessionId);
+          const sessionDir = yield* getSessionTasksDir(projectId, sessionId);
+
+          if (!(yield* fs.exists(sessionDir))) {
+            yield* fs.makeDirectory(sessionDir, { recursive: true });
           }
 
-          // Generate ID: find max ID and increment
-          const files = yield* fs.readDirectory(tasksDir);
+          const existing = yield* listTasksInSessionDir(sessionDir);
           let maxId = 0;
-          for (const file of files) {
-            if (file.endsWith(".json")) {
-              const idPart = file.replace(".json", "");
-              const idNum = parseInt(idPart, 10);
-              if (!Number.isNaN(idNum) && idNum > maxId) {
-                maxId = idNum;
-              }
+          for (const existingTask of existing) {
+            const current = Number(existingTask.id);
+            if (!Number.isNaN(current) && current > maxId) {
+              maxId = current;
             }
           }
-          const newId = (maxId + 1).toString();
 
-          const newTask: Task = {
-            id: newId,
+          const nextId = String(maxId + 1);
+          const nextTask: Task = {
+            id: nextId,
+            subject: task.subject,
+            description: task.description,
             status: "pending",
             blocks: [],
             blockedBy: [],
-            ...turnDef,
+            activeForm: task.activeForm,
+            metadata: task.metadata,
           };
 
-          const filePath = path.join(tasksDir, `${newId}.json`);
-          yield* fs.writeFileString(filePath, JSON.stringify(newTask, null, 2));
+          yield* fs.writeFileString(
+            path.join(sessionDir, `${nextId}.json`),
+            JSON.stringify(nextTask, null, 2),
+          );
 
-          return newTask;
+          return nextTask;
         });
 
       const updateTask = (
-        projectPath: string,
+        projectId: string,
         update: TaskUpdate,
         specificSessionId?: string,
       ) =>
         Effect.gen(function* () {
-          const tasksDir = yield* getTasksDirOrFail(
-            projectPath,
-            specificSessionId,
-          );
-          const filePath = path.join(tasksDir, `${update.taskId}.json`);
+          const sessionId = resolveSessionIdForWrite(specificSessionId);
+          const sessionDir = yield* getSessionTasksDir(projectId, sessionId);
+          const filePath = path.join(sessionDir, `${update.taskId}.json`);
 
-          const exists = yield* fs.exists(filePath);
-          if (!exists) {
+          if (!(yield* fs.exists(filePath))) {
             return yield* Effect.fail(
               new Error(`Task ${update.taskId} not found`),
             );
           }
 
-          const content = yield* fs.readFileString(filePath);
-          const currentTask = TaskSchema.parse(JSON.parse(content));
+          const currentTask = yield* parseTaskFile(filePath);
 
-          const updatedTask: Task = {
+          const nextTask: Task = {
             ...currentTask,
-            // User cannot update status via Viewer, it is managed by Claude Agent
-            status: currentTask.status,
             subject: update.subject ?? currentTask.subject,
             description: update.description ?? currentTask.description,
-            activeForm: update.activeForm ?? currentTask.activeForm,
+            status: update.status ?? currentTask.status,
             owner: update.owner ?? currentTask.owner,
+            activeForm: update.activeForm ?? currentTask.activeForm,
             blockedBy: update.addBlockedBy
-              ? [...(currentTask.blockedBy || []), ...update.addBlockedBy]
+              ? [...(currentTask.blockedBy ?? []), ...update.addBlockedBy]
               : currentTask.blockedBy,
             blocks: update.addBlocks
-              ? [...(currentTask.blocks || []), ...update.addBlocks]
+              ? [...(currentTask.blocks ?? []), ...update.addBlocks]
               : currentTask.blocks,
             metadata: update.metadata
-              ? { ...currentTask.metadata, ...update.metadata }
+              ? { ...(currentTask.metadata ?? {}), ...update.metadata }
               : currentTask.metadata,
           };
 
-          // Remove null metadata keys
-          if (updatedTask.metadata) {
-            for (const key in updatedTask.metadata) {
-              if (updatedTask.metadata[key] === null) {
-                delete updatedTask.metadata[key];
-              }
-            }
-          }
-
           yield* fs.writeFileString(
             filePath,
-            JSON.stringify(updatedTask, null, 2),
+            JSON.stringify(nextTask, null, 2),
           );
-          return updatedTask;
+
+          return nextTask;
         });
 
       return {

@@ -1,7 +1,7 @@
 import type { SessionMeta } from "../../types";
 
 /**
- * Creates a mock SessionMeta object for testing purposes with default cost values
+ * Creates a mock SessionMeta object for testing purposes with default token usage.
  */
 export function createMockSessionMeta(
   overrides: Partial<SessionMeta> = {},
@@ -9,20 +9,12 @@ export function createMockSessionMeta(
   return {
     messageCount: 0,
     firstUserMessage: null,
-    cost: {
-      totalUsd: 0,
-      breakdown: {
-        inputTokensUsd: 0,
-        outputTokensUsd: 0,
-        cacheCreationUsd: 0,
-        cacheReadUsd: 0,
-      },
-      tokenUsage: {
-        inputTokens: 0,
-        outputTokens: 0,
-        cacheCreationTokens: 0,
-        cacheReadTokens: 0,
-      },
+    tokenUsage: {
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      outputTokens: 0,
+      reasoningOutputTokens: 0,
+      totalTokens: 0,
     },
     modelName: null,
     ...overrides,

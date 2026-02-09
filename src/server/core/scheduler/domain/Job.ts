@@ -1,18 +1,24 @@
 import { Effect } from "effect";
-import { ClaudeCodeLifeCycleService } from "../../claude-code/services/ClaudeCodeLifeCycleService";
-import { UserConfigService } from "../../platform/services/UserConfigService";
-import { ProjectRepository } from "../../project/infrastructure/ProjectRepository";
+import type { ICodexLifeCycleService } from "../../codex-runtime/services/CodexLifeCycleService";
+import type { ICodexSessionProcessService } from "../../codex-runtime/services/CodexSessionProcessService";
+import type { IProjectRepository } from "../../project/infrastructure/ProjectRepository";
 import type { SchedulerJob } from "../schema";
 
-export const executeJob = (job: SchedulerJob) =>
-  Effect.gen(function* () {
-    const lifeCycleService = yield* ClaudeCodeLifeCycleService;
-    const projectRepository = yield* ProjectRepository;
-    const userConfigService = yield* UserConfigService;
+type JobExecutionDependencies = {
+  lifeCycleService: ICodexLifeCycleService;
+  sessionProcessService: ICodexSessionProcessService;
+  projectRepository: IProjectRepository;
+};
 
+export const executeJob = (
+  job: SchedulerJob,
+  dependencies: JobExecutionDependencies,
+) =>
+  Effect.gen(function* () {
     const { message } = job;
-    const { project } = yield* projectRepository.getProject(message.projectId);
-    const userConfig = yield* userConfigService.getUserConfig();
+    const { project } = yield* dependencies.projectRepository.getProject(
+      message.projectId,
+    );
 
     if (project.meta.projectPath === null) {
       return yield* Effect.fail(
@@ -20,11 +26,12 @@ export const executeJob = (job: SchedulerJob) =>
       );
     }
 
-    yield* lifeCycleService.startSessionProcess({
+    yield* dependencies.lifeCycleService.ensureStarted();
+
+    yield* dependencies.sessionProcessService.startSessionProcess({
       projectId: message.projectId,
       cwd: project.meta.projectPath,
       baseSession: message.baseSession ?? undefined,
-      userConfig,
       input: {
         text: message.content,
       },

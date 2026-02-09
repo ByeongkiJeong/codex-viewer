@@ -2,13 +2,13 @@ import type { RateLimitDetectionResult } from "../schema";
 import { RateLimitEntrySchema } from "../schema";
 
 /**
- * Detects if a JSON line represents a rate limit error from Claude Code.
+ * Detects if a JSON line represents a rate limit error from Codex.
  *
  * This pure function parses a single JSON line string and determines if it
  * matches the rate limit entry pattern. If matched, it extracts the session
  * ID and reset time text.
  *
- * @param jsonLine - A single line of JSON from a Claude Code session JSONL file
+ * @param jsonLine - A single line of JSON from a Codex session JSONL file
  * @returns Detection result with session info if rate limit detected
  */
 export const detectRateLimitFromLastLine = (

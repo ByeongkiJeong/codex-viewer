@@ -16,7 +16,7 @@ import { AuthMiddleware } from "../middleware/auth.middleware";
 import { configMiddleware } from "../middleware/config.middleware";
 import { getHonoRuntime } from "../runtime";
 import { authRoutes } from "./authRoutes";
-import { claudeCodeRoutes } from "./claudeCodeRoutes";
+import { codexRoutes } from "./codexRoutes";
 import { featureFlagRoutes } from "./featureFlagRoutes";
 import { fileSystemRoutes } from "./fileSystemRoutes";
 import { projectRoutes } from "./projectRoutes";
@@ -94,7 +94,7 @@ export const routes = (app: HonoAppType, options: CliOptions) =>
 
         // core routes
         .route("/api/projects", yield* projectRoutes)
-        .route("/api/claude-code", yield* claudeCodeRoutes)
+        .route("/api/codex", yield* codexRoutes)
         .route("/api/scheduler", yield* schedulerRoutes)
         .route("/api/file-system", yield* fileSystemRoutes)
         .route("/api/search", yield* searchRoutes)

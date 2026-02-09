@@ -1,7 +1,7 @@
 import { FileSystem, Path } from "@effect/platform";
 import { Context, Effect, Layer } from "effect";
 import { z } from "zod";
-import { claudeCodeViewerCacheDirPath } from "../../config/paths";
+import { codexViewerCacheDirPath } from "../../config/paths";
 import type { InferEffect } from "../../effect/types";
 
 const saveSchema = z.array(z.tuple([z.string(), z.unknown()]));
@@ -10,7 +10,7 @@ const LayerImpl = Effect.gen(function* () {
   const path = yield* Path.Path;
 
   const getCacheFilePath = (key: string) =>
-    path.resolve(claudeCodeViewerCacheDirPath, `${key}.json`);
+    path.resolve(codexViewerCacheDirPath, `${key}.json`);
 
   const load = (key: string) => {
     const cacheFilePath = getCacheFilePath(key);
@@ -18,8 +18,8 @@ const LayerImpl = Effect.gen(function* () {
     return Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
 
-      if (!(yield* fs.exists(claudeCodeViewerCacheDirPath))) {
-        yield* fs.makeDirectory(claudeCodeViewerCacheDirPath, {
+      if (!(yield* fs.exists(codexViewerCacheDirPath))) {
+        yield* fs.makeDirectory(codexViewerCacheDirPath, {
           recursive: true,
         });
       }

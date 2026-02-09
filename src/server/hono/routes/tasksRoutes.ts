@@ -2,7 +2,6 @@ import { zValidator } from "@hono/zod-validator";
 import { Effect } from "effect";
 import { Hono } from "hono";
 import { z } from "zod";
-import { decodeProjectId } from "../../core/project/functions/id";
 import { TasksController } from "../../core/tasks/presentation/TasksController";
 import { TaskCreateSchema, TaskUpdateSchema } from "../../core/tasks/schema";
 import { effectToResponse } from "../../lib/effect/toEffectResponse";
@@ -25,12 +24,11 @@ const tasksRoutes = Effect.gen(function* () {
       ),
       async (c) => {
         const { projectId, sessionId } = c.req.valid("query");
-        const projectPath = decodeProjectId(projectId);
         const status: 200 = 200;
 
         const response = await effectToResponse(
           c,
-          tasksController.listTasks(projectPath, sessionId).pipe(
+          tasksController.listTasks(projectId, sessionId).pipe(
             Effect.map((tasks) => ({
               status,
               response: tasks,
@@ -54,12 +52,11 @@ const tasksRoutes = Effect.gen(function* () {
       async (c) => {
         const { projectId, sessionId } = c.req.valid("query");
         const body = c.req.valid("json");
-        const projectPath = decodeProjectId(projectId);
         const status: 200 = 200;
 
         const response = await effectToResponse(
           c,
-          tasksController.createTask(projectPath, body, sessionId).pipe(
+          tasksController.createTask(projectId, body, sessionId).pipe(
             Effect.map((task) => ({
               status,
               response: task,
@@ -84,13 +81,12 @@ const tasksRoutes = Effect.gen(function* () {
         const { taskId } = c.req.param();
         const { projectId, sessionId } = c.req.valid("query");
         const body = c.req.valid("json");
-        const projectPath = decodeProjectId(projectId);
         const status: 200 = 200;
 
         const response = await effectToResponse(
           c,
           tasksController
-            .updateTask(projectPath, { ...body, taskId }, sessionId)
+            .updateTask(projectId, { ...body, taskId }, sessionId)
             .pipe(
               Effect.map((task) => ({
                 status,

@@ -1,312 +1,158 @@
-import { SystemError } from "@effect/platform/Error";
-import { Effect, Option } from "effect";
+import { Effect, Layer } from "effect";
+import { describe, expect, it } from "vitest";
 import {
-  createFileInfo,
-  testFileSystemLayer,
-} from "../../../../testing/layers/testFileSystemLayer";
-import { testPlatformLayer } from "../../../../testing/layers/testPlatformLayer";
-import { testProjectMetaServiceLayer } from "../../../../testing/layers/testProjectMetaServiceLayer";
-import type { ProjectMeta } from "../../types";
+  type SessionIndexRecord,
+  SessionIndexService,
+} from "../../session/infrastructure/SessionIndexService";
+import { decodeProjectId, encodeProjectId } from "../functions/id";
 import { ProjectMetaService } from "../services/ProjectMetaService";
 import { ProjectRepository } from "./ProjectRepository";
 
+const makeRecord = (overrides: {
+  threadId: string;
+  cwd: string;
+  jsonlFilePath: string;
+  lastModifiedAt: Date;
+}): SessionIndexRecord => ({
+  ...overrides,
+  firstUserText: "hello",
+  modelName: "gpt-5-codex",
+  tokenUsage: {
+    inputTokens: 10,
+    cachedInputTokens: 0,
+    outputTokens: 5,
+    reasoningOutputTokens: 0,
+    totalTokens: 15,
+  },
+  lineCount: 2,
+  parsedLines: [],
+});
+
+const makeSessionIndexLayer = (records: SessionIndexRecord[]) =>
+  Layer.succeed(
+    SessionIndexService,
+    SessionIndexService.of({
+      getSessionIndices: () => Effect.succeed(records),
+      getSessionByThreadId: (threadId: string) =>
+        Effect.succeed(
+          records.find((record) => record.threadId === threadId) ?? null,
+        ),
+    }),
+  );
+
+const makeProjectMetaLayer = () =>
+  Layer.succeed(
+    ProjectMetaService,
+    ProjectMetaService.of({
+      getProjectMeta: (projectId: string) =>
+        Effect.succeed({
+          projectName: decodeProjectId(projectId).split("/").at(-1) ?? null,
+          projectPath: decodeProjectId(projectId),
+          sessionCount: 2,
+        }),
+      invalidateProject: () => Effect.void,
+    }),
+  );
+
 describe("ProjectRepository", () => {
-  describe("getProject", () => {
-    it("returns project information when project exists", async () => {
-      const projectPath = "/test/project";
-      const projectId = Buffer.from(projectPath).toString("base64url");
-      const mockDate = new Date("2024-01-01T00:00:00.000Z");
-      const mockMeta: ProjectMeta = {
-        projectName: "Test Project",
-        projectPath: "/workspace",
-        sessionCount: 5,
-      };
+  it("returns a project when sessions exist for the cwd", async () => {
+    const projectPath = "/test/project-a";
+    const projectId = encodeProjectId(projectPath);
 
-      const FileSystemMock = testFileSystemLayer({
-        exists: (path: string) => Effect.succeed(path === projectPath),
-        stat: () =>
-          Effect.succeed(
-            createFileInfo({ type: "Directory", mtime: Option.some(mockDate) }),
-          ),
-      });
+    const records = [
+      makeRecord({
+        threadId: "thread-1",
+        cwd: projectPath,
+        jsonlFilePath: "/mock/sessions/a/rollout-1.jsonl",
+        lastModifiedAt: new Date("2026-01-01T00:00:00.000Z"),
+      }),
+      makeRecord({
+        threadId: "thread-2",
+        cwd: projectPath,
+        jsonlFilePath: "/mock/sessions/a/rollout-2.jsonl",
+        lastModifiedAt: new Date("2026-01-03T00:00:00.000Z"),
+      }),
+    ];
 
-      const program = Effect.gen(function* () {
-        const repo = yield* ProjectRepository;
-        return yield* repo.getProject(projectId);
-      });
-
-      const result = await Effect.runPromise(
-        program.pipe(
-          Effect.provide(ProjectRepository.Live),
-          Effect.provide(
-            testProjectMetaServiceLayer({
-              meta: mockMeta,
-            }),
-          ),
-          Effect.provide(FileSystemMock),
-          Effect.provide(testPlatformLayer()),
-        ),
-      );
-
-      expect(result.project).toEqual({
-        id: projectId,
-        claudeProjectPath: projectPath,
-        lastModifiedAt: mockDate,
-        meta: mockMeta,
-      });
+    const program = Effect.gen(function* () {
+      const repository = yield* ProjectRepository;
+      return yield* repository.getProject(projectId);
     });
 
-    it("returns error when project does not exist", async () => {
-      const projectPath = "/test/nonexistent";
-      const projectId = Buffer.from(projectPath).toString("base64url");
-      const mockMeta: ProjectMeta = {
-        projectName: null,
-        projectPath: null,
-        sessionCount: 0,
-      };
+    const result = await Effect.runPromise(
+      program.pipe(
+        Effect.provide(ProjectRepository.Live),
+        Effect.provide(makeProjectMetaLayer()),
+        Effect.provide(makeSessionIndexLayer(records)),
+      ),
+    );
 
-      const FileSystemMock = testFileSystemLayer({
-        exists: () => Effect.succeed(false),
-        stat: () =>
-          Effect.succeed(
-            createFileInfo({
-              type: "Directory",
-              mtime: Option.some(new Date()),
-            }),
-          ),
-      });
-
-      const program = Effect.gen(function* () {
-        const repo = yield* ProjectRepository;
-        return yield* repo.getProject(projectId);
-      });
-
-      await expect(
-        Effect.runPromise(
-          program.pipe(
-            Effect.provide(ProjectRepository.Live),
-            Effect.provide(
-              testProjectMetaServiceLayer({
-                meta: mockMeta,
-              }),
-            ),
-            Effect.provide(FileSystemMock),
-            Effect.provide(testPlatformLayer()),
-          ),
-        ),
-      ).rejects.toThrow("Project not found");
-    });
+    expect(result.project.id).toBe(projectId);
+    expect(result.project.projectPath).toBe(projectPath);
+    expect(result.project.lastModifiedAt).toEqual(
+      new Date("2026-01-03T00:00:00.000Z"),
+    );
   });
 
-  describe("getProjects", () => {
-    it("returns empty array when project directory does not exist", async () => {
-      const mockMeta: ProjectMeta = {
-        projectName: null,
-        projectPath: null,
-        sessionCount: 0,
-      };
+  it("fails when no sessions exist for project", async () => {
+    const projectId = encodeProjectId("/missing/project");
 
-      const program = Effect.gen(function* () {
-        const repo = yield* ProjectRepository;
-        return yield* repo.getProjects();
-      });
-
-      const result = await Effect.runPromise(
-        program.pipe(
-          Effect.provide(ProjectRepository.Live),
-          Effect.provide(
-            testProjectMetaServiceLayer({
-              meta: mockMeta,
-            }),
-          ),
-          Effect.provide(
-            testFileSystemLayer({
-              exists: () => Effect.succeed(false),
-              readDirectory: () => Effect.succeed([]),
-              stat: () =>
-                Effect.succeed(
-                  createFileInfo({
-                    type: "Directory",
-                    mtime: Option.some(new Date()),
-                  }),
-                ),
-            }),
-          ),
-          Effect.provide(testPlatformLayer()),
-        ),
-      );
-
-      expect(result.projects).toEqual([]);
+    const program = Effect.gen(function* () {
+      const repository = yield* ProjectRepository;
+      return yield* repository.getProject(projectId);
     });
 
-    it("returns multiple projects correctly sorted", async () => {
-      const date1 = new Date("2024-01-01T00:00:00.000Z");
-      const date2 = new Date("2024-01-02T00:00:00.000Z");
-      const date3 = new Date("2024-01-03T00:00:00.000Z");
-
-      const program = Effect.gen(function* () {
-        const repo = yield* ProjectRepository;
-        return yield* repo.getProjects();
-      });
-
-      const result = await Effect.runPromise(
+    await expect(
+      Effect.runPromise(
         program.pipe(
           Effect.provide(ProjectRepository.Live),
-          Effect.provide(ProjectMetaService.Live),
-          Effect.provide(
-            testFileSystemLayer({
-              exists: () => Effect.succeed(true),
-              readDirectory: () =>
-                Effect.succeed(["project1", "project2", "project3"]),
-              readFileString: () =>
-                Effect.succeed(
-                  '{"type":"user","cwd":"/workspace","text":"test"}',
-                ),
-              stat: (path: string) => {
-                if (path.includes("project1")) {
-                  return Effect.succeed(
-                    createFileInfo({
-                      type: "Directory",
-                      mtime: Option.some(date2),
-                    }),
-                  );
-                }
-                if (path.includes("project2")) {
-                  return Effect.succeed(
-                    createFileInfo({
-                      type: "Directory",
-                      mtime: Option.some(date3),
-                    }),
-                  );
-                }
-                if (path.includes("project3")) {
-                  return Effect.succeed(
-                    createFileInfo({
-                      type: "Directory",
-                      mtime: Option.some(date1),
-                    }),
-                  );
-                }
-                return Effect.succeed(
-                  createFileInfo({
-                    type: "Directory",
-                    mtime: Option.some(new Date()),
-                  }),
-                );
-              },
-              makeDirectory: () => Effect.void,
-              writeFileString: () => Effect.void,
-            }),
-          ),
-          Effect.provide(testPlatformLayer()),
+          Effect.provide(makeProjectMetaLayer()),
+          Effect.provide(makeSessionIndexLayer([])),
         ),
-      );
+      ),
+    ).rejects.toThrow("An error has occurred");
+  });
 
-      expect(result.projects.length).toBe(3);
-      expect(result.projects.at(0)?.lastModifiedAt).toEqual(date3); // project2
-      expect(result.projects.at(1)?.lastModifiedAt).toEqual(date2); // project1
-      expect(result.projects.at(2)?.lastModifiedAt).toEqual(date1); // project3
+  it("groups projects by cwd and sorts by latest update", async () => {
+    const projectA = "/test/project-a";
+    const projectB = "/test/project-b";
+
+    const records = [
+      makeRecord({
+        threadId: "thread-a1",
+        cwd: projectA,
+        jsonlFilePath: "/mock/sessions/a/rollout-1.jsonl",
+        lastModifiedAt: new Date("2026-01-01T00:00:00.000Z"),
+      }),
+      makeRecord({
+        threadId: "thread-a2",
+        cwd: projectA,
+        jsonlFilePath: "/mock/sessions/a/rollout-2.jsonl",
+        lastModifiedAt: new Date("2026-01-02T00:00:00.000Z"),
+      }),
+      makeRecord({
+        threadId: "thread-b1",
+        cwd: projectB,
+        jsonlFilePath: "/mock/sessions/b/rollout-1.jsonl",
+        lastModifiedAt: new Date("2026-01-03T00:00:00.000Z"),
+      }),
+    ];
+
+    const program = Effect.gen(function* () {
+      const repository = yield* ProjectRepository;
+      return yield* repository.getProjects();
     });
 
-    it("filters only directories", async () => {
-      const date = new Date("2024-01-01T00:00:00.000Z");
+    const result = await Effect.runPromise(
+      program.pipe(
+        Effect.provide(ProjectRepository.Live),
+        Effect.provide(makeProjectMetaLayer()),
+        Effect.provide(makeSessionIndexLayer(records)),
+      ),
+    );
 
-      const program = Effect.gen(function* () {
-        const repo = yield* ProjectRepository;
-        return yield* repo.getProjects();
-      });
-
-      const result = await Effect.runPromise(
-        program.pipe(
-          Effect.provide(ProjectRepository.Live),
-          Effect.provide(ProjectMetaService.Live),
-          Effect.provide(
-            testFileSystemLayer({
-              exists: () => Effect.succeed(true),
-              readDirectory: () =>
-                Effect.succeed(["project1", "file.txt", "project2"]),
-              readFileString: () =>
-                Effect.succeed(
-                  '{"type":"user","cwd":"/workspace","text":"test"}',
-                ),
-              stat: (path: string) => {
-                if (path.includes("file.txt")) {
-                  return Effect.succeed(
-                    createFileInfo({ type: "File", mtime: Option.some(date) }),
-                  );
-                }
-                return Effect.succeed(
-                  createFileInfo({
-                    type: "Directory",
-                    mtime: Option.some(date),
-                  }),
-                );
-              },
-              makeDirectory: () => Effect.void,
-              writeFileString: () => Effect.void,
-            }),
-          ),
-          Effect.provide(testPlatformLayer()),
-        ),
-      );
-
-      expect(result.projects.length).toBe(2);
-      expect(
-        result.projects.every((p) => p.claudeProjectPath.match(/project[12]$/)),
-      ).toBe(true);
-    });
-
-    it("skips entries where stat retrieval fails", async () => {
-      const date = new Date("2024-01-01T00:00:00.000Z");
-
-      const program = Effect.gen(function* () {
-        const repo = yield* ProjectRepository;
-        return yield* repo.getProjects();
-      });
-
-      const result = await Effect.runPromise(
-        program.pipe(
-          Effect.provide(ProjectRepository.Live),
-          Effect.provide(ProjectMetaService.Live),
-          Effect.provide(
-            testFileSystemLayer({
-              exists: () => Effect.succeed(true),
-              readDirectory: () =>
-                Effect.succeed(["project1", "broken", "project2"]),
-              readFileString: () =>
-                Effect.succeed(
-                  '{"type":"user","cwd":"/workspace","text":"test"}',
-                ),
-              stat: (path: string) => {
-                if (path.includes("broken")) {
-                  return Effect.fail(
-                    new SystemError({
-                      method: "stat",
-                      reason: "PermissionDenied",
-                      module: "FileSystem",
-                      cause: undefined,
-                    }),
-                  );
-                }
-                return Effect.succeed(
-                  createFileInfo({
-                    type: "Directory",
-                    mtime: Option.some(date),
-                  }),
-                );
-              },
-              makeDirectory: () => Effect.void,
-              writeFileString: () => Effect.void,
-            }),
-          ),
-          Effect.provide(testPlatformLayer()),
-        ),
-      );
-
-      expect(result.projects.length).toBe(2);
-      expect(
-        result.projects.every((p) => p.claudeProjectPath.match(/project[12]$/)),
-      ).toBe(true);
-    });
+    expect(result.projects).toHaveLength(2);
+    expect(result.projects[0]?.projectPath).toBe(projectB);
+    expect(result.projects[1]?.projectPath).toBe(projectA);
   });
 });

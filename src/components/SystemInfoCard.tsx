@@ -3,7 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { CheckCircle2, ChevronDown, ChevronRight, XCircle } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
-import { claudeCodeMetaQuery, systemVersionQuery } from "@/lib/api/queries";
+import { codexMetaQuery, systemVersionQuery } from "@/lib/api/queries";
 import { Badge } from "./ui/badge";
 import {
   Collapsible,
@@ -24,38 +24,30 @@ interface FeatureInfo {
 
 const getFeatureInfo = (featureName: string): FeatureInfo => {
   switch (featureName) {
+    case "app-server":
+      return {
+        title: "App Server",
+        description: "Codex app-server runtime availability",
+      };
     case "tool-approval":
       return {
-        title: <Trans id="system_info.feature.tool_approval.title" />,
-        description: (
-          <Trans id="system_info.feature.tool_approval.description" />
-        ),
+        title: "Tool Approval",
+        description: "Permission request / response support",
       };
-    case "agent-sdk":
+    case "session-processes":
       return {
-        title: <Trans id="system_info.feature.agent_sdk.title" />,
-        description: <Trans id="system_info.feature.agent_sdk.description" />,
+        title: "Session Processes",
+        description: "Session process tracking and control",
       };
-    case "sidechain-separation":
+    case "mcp-server-status":
       return {
-        title: <Trans id="system_info.feature.sidechain_separation.title" />,
-        description: (
-          <Trans id="system_info.feature.sidechain_separation.description" />
-        ),
+        title: "MCP Server Status",
+        description: "MCP server listing integration",
       };
-    case "uuid-on-sdk-message":
+    case "tasks":
       return {
-        title: <Trans id="system_info.feature.uuid_on_sdk_message.title" />,
-        description: (
-          <Trans id="system_info.feature.uuid_on_sdk_message.description" />
-        ),
-      };
-    case "run-skills-directly":
-      return {
-        title: <Trans id="system_info.feature.run_skills_directly.title" />,
-        description: (
-          <Trans id="system_info.feature.run_skills_directly.description" />
-        ),
+        title: "Tasks",
+        description: "Task storage and API availability",
       };
     default:
       return {
@@ -72,8 +64,8 @@ export const SystemInfoCard: FC = () => {
     ...systemVersionQuery,
   });
 
-  const { data: claudeCodeMetaData } = useSuspenseQuery({
-    ...claudeCodeMetaQuery,
+  const { data: codexMetaData } = useSuspenseQuery({
+    ...codexMetaQuery,
   });
 
   const { flags } = useFeatureFlags();
@@ -90,7 +82,7 @@ export const SystemInfoCard: FC = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {/* Claude Code Viewer Version */}
+        {/* Codex Viewer Version */}
         <div className="space-y-3">
           <h3 className="font-medium text-sm text-sidebar-foreground">
             <Trans id="system_info.viewer_version" />
@@ -105,10 +97,10 @@ export const SystemInfoCard: FC = () => {
           </div>
         </div>
 
-        {/* Claude Code Information */}
+        {/* Codex Information */}
         <div className="space-y-3">
           <h3 className="font-medium text-sm text-sidebar-foreground">
-            <Trans id="system_info.claude_code" />
+            <Trans id="system_info.codex_code" />
           </h3>
           <div className="space-y-2 pl-2">
             <div className="space-y-1">
@@ -116,7 +108,7 @@ export const SystemInfoCard: FC = () => {
                 <Trans id="system_info.executable_path" />
               </div>
               <div className="text-xs text-sidebar-foreground font-mono break-all">
-                {claudeCodeMetaData?.executablePath || (
+                {codexMetaData?.executablePath || (
                   <span className="text-sidebar-foreground/50">
                     <Trans id="system_info.unknown" />
                   </span>
@@ -129,9 +121,7 @@ export const SystemInfoCard: FC = () => {
                 <Trans id="system_info.version_label" />
               </span>
               <Badge variant="secondary" className="text-xs font-mono">
-                {claudeCodeMetaData?.version || (
-                  <Trans id="system_info.unknown" />
-                )}
+                {codexMetaData?.version || <Trans id="system_info.unknown" />}
               </Badge>
             </div>
           </div>

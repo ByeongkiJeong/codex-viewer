@@ -26,7 +26,7 @@ const schedulerKeys = {
 export const useSchedulerJobs = () => {
   return useQuery({
     queryKey: schedulerKeys.jobs(),
-    queryFn: async (): Promise<SchedulerJob[]> => {
+    queryFn: async () => {
       const response = await honoClient.api.scheduler.jobs.$get();
       if (!response.ok) {
         throw new Error("Failed to fetch scheduler jobs");
@@ -60,7 +60,7 @@ export const useCreateSchedulerJob = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (newJob: NewSchedulerJob): Promise<SchedulerJob> => {
+    mutationFn: async (newJob: NewSchedulerJob) => {
       const response = await honoClient.api.scheduler.jobs.$post({
         json: newJob,
       });
@@ -104,7 +104,7 @@ export const useUpdateSchedulerJob = () => {
     }: {
       id: string;
       updates: UpdateSchedulerJob;
-    }): Promise<SchedulerJob> => {
+    }) => {
       const response = await honoClient.api.scheduler.jobs[":id"].$patch({
         param: { id },
         json: updates,
@@ -120,6 +120,9 @@ export const useUpdateSchedulerJob = () => {
       return response.json();
     },
     onSuccess: (data) => {
+      if (!("id" in data)) {
+        return;
+      }
       // Invalidate specific job and jobs list
       void queryClient.invalidateQueries({
         queryKey: schedulerKeys.job(data.id),
@@ -147,7 +150,7 @@ export const useDeleteSchedulerJob = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: string): Promise<{ success: true }> => {
+    mutationFn: async (id: string) => {
       const response = await honoClient.api.scheduler.jobs[":id"].$delete({
         param: { id },
       });

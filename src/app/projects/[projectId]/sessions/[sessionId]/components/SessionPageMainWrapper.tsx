@@ -26,7 +26,7 @@ export const SessionPageMainWrapper: FC<{
   }
   const project = firstPage.project;
 
-  const projectPath = project.meta.projectPath ?? project.claudeProjectPath;
+  const projectPath = project.meta.projectPath ?? project.projectPath;
 
   return (
     <>

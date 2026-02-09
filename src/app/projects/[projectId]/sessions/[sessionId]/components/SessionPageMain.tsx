@@ -36,7 +36,6 @@ import { useTaskNotifications } from "@/hooks/useTaskNotifications";
 import { honoClient } from "@/lib/api/client";
 import { formatLocaleDate } from "@/lib/date/formatLocaleDate";
 import { cn } from "@/lib/utils";
-import { parseUserMessage } from "@/server/core/claude-code/functions/parseUserMessage";
 import { useProject } from "../../../hooks/useProject";
 import { firstUserMessageToTitle } from "../../../services/firstCommandToTitle";
 import { useExportSession } from "../hooks/useExportSession";
@@ -90,8 +89,6 @@ const SessionPageMainContent: FC<
 > = ({ projectId, sessionId, projectPath, projectName, sessionData }) => {
   const navigate = useNavigate();
   const conversations = sessionData?.conversations ?? [];
-  const emptyToolResult: SessionData["getToolResult"] = () => undefined;
-  const getToolResult = sessionData?.getToolResult ?? emptyToolResult;
   const isExistingSession =
     Boolean(sessionId) && sessionData !== null && sessionData !== undefined;
   const { currentPermissionRequest, isDialogOpen, onPermissionResponse } =
@@ -107,25 +104,6 @@ const SessionPageMainContent: FC<
   const { config } = useConfig();
   const sessions = projectData.pages.flatMap((page) => page.sessions);
 
-  const hasLocalCommandOutput = useMemo(
-    () =>
-      conversations.some((conversation) => {
-        if (conversation.type !== "user") {
-          return false;
-        }
-
-        if (typeof conversation.message.content !== "string") {
-          return false;
-        }
-
-        return (
-          parseUserMessage(conversation.message.content).kind ===
-          "local-command"
-        );
-      }),
-    [conversations],
-  );
-
   const sortedSessions = useMemo(
     () =>
       [...sessions].sort((a, b) => {
@@ -139,10 +117,19 @@ const SessionPageMainContent: FC<
         const aStatus = aProcess?.status;
         const bStatus = bProcess?.status;
 
-        const getPriority = (status: "paused" | "running" | undefined) => {
+        const getPriority = (
+          status:
+            | "paused"
+            | "running"
+            | "awaiting_approval"
+            | "completed"
+            | undefined,
+        ) => {
           if (status === "running") return 0;
-          if (status === "paused") return 1;
-          return 2;
+          if (status === "awaiting_approval") return 1;
+          if (status === "paused") return 2;
+          if (status === "completed") return 3;
+          return 4;
         };
 
         const aPriority = getPriority(aStatus);
@@ -169,10 +156,7 @@ const SessionPageMainContent: FC<
     return sessionProcess.getSessionProcess(sessionId);
   }, [sessionProcess, sessionId]);
 
-  const effectiveSessionStatus =
-    relatedSessionProcess?.status === "running" && hasLocalCommandOutput
-      ? "paused"
-      : relatedSessionProcess?.status;
+  const effectiveSessionStatus = relatedSessionProcess?.status;
   const statusBadge = getSessionStatusBadgeProps(effectiveSessionStatus);
 
   useTaskNotifications(effectiveSessionStatus === "running");
@@ -196,7 +180,7 @@ const SessionPageMainContent: FC<
 
   const abortTask = useMutation({
     mutationFn: async (sessionProcessId: string) => {
-      const response = await honoClient.api["claude-code"]["session-processes"][
+      const response = await honoClient.api.codex["session-processes"][
         ":sessionProcessId"
       ].abort.$post({
         param: { sessionProcessId },
@@ -445,74 +429,51 @@ const SessionPageMainContent: FC<
                           {isExistingSession && sessionData && (
                             <div className="flex flex-col gap-1">
                               <span className="text-xs text-muted-foreground">
-                                <Trans id="session.cost.label" />
+                                <Trans id="session.tokens.label" />
                               </span>
                               <div className="space-y-1.5">
                                 <Badge
                                   variant="secondary"
                                   className="h-7 text-xs flex items-center w-fit font-semibold"
                                 >
-                                  <Trans id="session.cost.total" />: $
-                                  {sessionData.session.meta.cost.totalUsd.toFixed(
-                                    3,
-                                  )}
+                                  <Trans id="session.tokens.total" />:{" "}
+                                  {sessionData.session.meta.tokenUsage.totalTokens.toLocaleString()}
                                 </Badge>
                                 <div className="text-xs space-y-1 pl-2">
                                   <div className="flex justify-between gap-4">
                                     <span className="text-muted-foreground">
-                                      <Trans id="session.cost.input_tokens" />:
-                                    </span>
-                                    <span>
-                                      $
-                                      {sessionData.session.meta.cost.breakdown.inputTokensUsd.toFixed(
-                                        3,
-                                      )}{" "}
-                                      (
-                                      {sessionData.session.meta.cost.tokenUsage.inputTokens.toLocaleString()}
-                                      )
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between gap-4">
-                                    <span className="text-muted-foreground">
-                                      <Trans id="session.cost.output_tokens" />:
-                                    </span>
-                                    <span>
-                                      $
-                                      {sessionData.session.meta.cost.breakdown.outputTokensUsd.toFixed(
-                                        3,
-                                      )}{" "}
-                                      (
-                                      {sessionData.session.meta.cost.tokenUsage.outputTokens.toLocaleString()}
-                                      )
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between gap-4">
-                                    <span className="text-muted-foreground">
-                                      <Trans id="session.cost.cache_creation" />
+                                      <Trans id="session.tokens.input_tokens" />
                                       :
                                     </span>
                                     <span>
-                                      $
-                                      {sessionData.session.meta.cost.breakdown.cacheCreationUsd.toFixed(
-                                        3,
-                                      )}{" "}
-                                      (
-                                      {sessionData.session.meta.cost.tokenUsage.cacheCreationTokens.toLocaleString()}
-                                      )
+                                      {sessionData.session.meta.tokenUsage.inputTokens.toLocaleString()}
                                     </span>
                                   </div>
                                   <div className="flex justify-between gap-4">
                                     <span className="text-muted-foreground">
-                                      <Trans id="session.cost.cache_read" />:
+                                      <Trans id="session.tokens.output_tokens" />
+                                      :
                                     </span>
                                     <span>
-                                      $
-                                      {sessionData.session.meta.cost.breakdown.cacheReadUsd.toFixed(
-                                        3,
-                                      )}{" "}
-                                      (
-                                      {sessionData.session.meta.cost.tokenUsage.cacheReadTokens.toLocaleString()}
-                                      )
+                                      {sessionData.session.meta.tokenUsage.outputTokens.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between gap-4">
+                                    <span className="text-muted-foreground">
+                                      <Trans id="session.tokens.cached_input_tokens" />
+                                      :
+                                    </span>
+                                    <span>
+                                      {sessionData.session.meta.tokenUsage.cachedInputTokens.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between gap-4">
+                                    <span className="text-muted-foreground">
+                                      <Trans id="session.tokens.reasoning_output_tokens" />
+                                      :
+                                    </span>
+                                    <span>
+                                      {sessionData.session.meta.tokenUsage.reasoningOutputTokens.toLocaleString()}
                                     </span>
                                   </div>
                                 </div>
@@ -556,9 +517,6 @@ const SessionPageMainContent: FC<
           <main className="w-full px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 relative min-w-0 pb-4">
             <ConversationList
               conversations={isExistingSession ? conversations : []}
-              getToolResult={getToolResult}
-              projectId={projectId}
-              sessionId={sessionId ?? ""}
               scheduledJobs={sessionScheduledJobs}
             />
             {!isExistingSession && (
@@ -597,6 +555,8 @@ const SessionPageMainContent: FC<
                         );
                         const isRunning = sessionProcess?.status === "running";
                         const isPaused = sessionProcess?.status === "paused";
+                        const isAwaitingApproval =
+                          sessionProcess?.status === "awaiting_approval";
 
                         return (
                           <Link
@@ -613,19 +573,25 @@ const SessionPageMainContent: FC<
                               <h4 className="text-sm font-medium line-clamp-1 flex-1">
                                 {title}
                               </h4>
-                              {(isRunning || isPaused) && (
+                              {(isRunning ||
+                                isPaused ||
+                                isAwaitingApproval) && (
                                 <Badge
                                   variant="secondary"
                                   className={cn(
                                     "text-[10px] px-1.5 h-4 shrink-0",
                                     isRunning &&
                                       "bg-green-500/10 text-green-600 dark:text-green-400",
+                                    isAwaitingApproval &&
+                                      "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
                                     isPaused &&
                                       "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
                                   )}
                                 >
                                   {isRunning ? (
                                     <Trans id="session.status.running" />
+                                  ) : isAwaitingApproval ? (
+                                    <Trans id="session.status.awaiting_approval" />
                                   ) : (
                                     <Trans id="session.status.paused" />
                                   )}

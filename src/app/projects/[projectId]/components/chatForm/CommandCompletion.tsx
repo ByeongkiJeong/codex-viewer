@@ -16,7 +16,7 @@ import {
   Collapsible,
   CollapsibleContent,
 } from "../../../../../components/ui/collapsible";
-import { claudeCommandsQuery } from "../../../../../lib/api/queries";
+import { codexCommandsQuery } from "../../../../../lib/api/queries";
 import { cn } from "../../../../../lib/utils";
 
 type CommandInfo = {
@@ -48,8 +48,8 @@ export const CommandCompletion = forwardRef<
 
   // コマンドリストを取得
   const { data: commandData } = useQuery({
-    queryKey: claudeCommandsQuery(projectId).queryKey,
-    queryFn: claudeCommandsQuery(projectId).queryFn,
+    queryKey: codexCommandsQuery(projectId).queryKey,
+    queryFn: codexCommandsQuery(projectId).queryFn,
     staleTime: 1000 * 60 * 5, // 5分間キャッシュ
   });
 
@@ -57,10 +57,9 @@ export const CommandCompletion = forwardRef<
   const { shouldShowCompletion, filteredCommands } = useMemo(() => {
     const allCommands: CommandInfo[] = [
       ...(commandData?.defaultCommands || []),
-      ...(commandData?.globalCommands || []),
-      ...(commandData?.projectCommands || []),
       ...(commandData?.globalSkills || []),
-      ...(commandData?.projectSkills || []),
+      ...(commandData?.vendorSkills || []),
+      ...(commandData?.projectCommands || []),
     ];
 
     const shouldShow = inputValue.startsWith("/");

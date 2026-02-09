@@ -51,7 +51,7 @@ export const StartNewChat: FC<{ projectId: string }> = ({ projectId }) => {
         containerClassName=""
         buttonSize="default"
         enableScheduledSend={true}
-        enableCCOptions={true}
+        enableCodexOptions={true}
       />
     </div>
   );

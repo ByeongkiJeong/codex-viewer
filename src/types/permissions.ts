@@ -1,7 +1,14 @@
+export type PermissionRequestKind =
+  | "commandExecution"
+  | "fileChange"
+  | "applyPatch"
+  | "execCommand";
+
 export type PermissionRequest = {
   id: string;
-  turnId: string;
-  sessionId?: string;
+  kind: PermissionRequestKind;
+  turnId?: string;
+  sessionId: string;
   toolName: string;
   toolInput: Record<string, unknown>;
   timestamp: number;

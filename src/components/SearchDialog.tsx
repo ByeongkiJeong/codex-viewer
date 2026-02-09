@@ -169,7 +169,7 @@ export function SearchDialog({
                           {result.projectName}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {result.type === "user" ? "You" : "Claude"}
+                          {result.type === "user" ? "You" : "Codex"}
                         </span>
                       </div>
                       <p className="text-sm line-clamp-2 break-words">

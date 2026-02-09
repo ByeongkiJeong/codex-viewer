@@ -22,8 +22,13 @@ const DEPRECATED_ENVS: Record<string, DeprecatedEnvConfig> = {
   },
   CLAUDE_CODE_VIEWER_CC_EXECUTABLE_PATH: {
     type: "removed",
-    newEnv: "CCV_CC_EXECUTABLE_PATH",
+    newEnv: "CCV_CODEX_EXECUTABLE_PATH",
     cliOption: "--executable",
+  },
+  CCV_GLOBAL_CLAUDE_DIR: {
+    type: "removed",
+    newEnv: "CCV_GLOBAL_CODEX_HOME",
+    cliOption: "--codex-home",
   },
 };
 
@@ -90,7 +95,7 @@ export const checkDeprecatedEnvs = Effect.gen(function* () {
 
   yield* Console.log("For more details, see:");
   yield* Console.log(
-    "  https://github.com/d-kimuson/claude-code-viewer#configuration",
+    "  https://github.com/d-kimuson/codex-viewer#configuration",
   );
   yield* Console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   yield* Console.log("");

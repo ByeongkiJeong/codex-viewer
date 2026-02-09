@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Ref } from "effect";
-import type { Conversation } from "../../../../lib/conversation-schema";
+import type { ParsedCodexLine } from "../../../../lib/codex-conversation-schema/parseCodexJsonl";
 import type { ErrorJsonl } from "../../types";
 
 /**
@@ -16,7 +16,7 @@ export class VirtualConversationDatabase extends Context.Tag(
       {
         projectId: string;
         sessionId: string;
-        conversations: (Conversation | ErrorJsonl)[];
+        conversations: (ParsedCodexLine | ErrorJsonl)[];
       }[]
     >;
     readonly getSessionVirtualConversation: (
@@ -24,12 +24,12 @@ export class VirtualConversationDatabase extends Context.Tag(
     ) => Effect.Effect<{
       projectId: string;
       sessionId: string;
-      conversations: (Conversation | ErrorJsonl)[];
+      conversations: (ParsedCodexLine | ErrorJsonl)[];
     } | null>;
     readonly createVirtualConversation: (
       projectId: string,
       sessionId: string,
-      conversations: readonly (Conversation | ErrorJsonl)[],
+      conversations: readonly (ParsedCodexLine | ErrorJsonl)[],
     ) => Effect.Effect<void>;
     readonly deleteVirtualConversations: (
       sessionId: string,
@@ -43,7 +43,7 @@ export class VirtualConversationDatabase extends Context.Tag(
         {
           projectId: string;
           sessionId: string;
-          conversations: (Conversation | ErrorJsonl)[];
+          conversations: (ParsedCodexLine | ErrorJsonl)[];
         }[]
       >([]);
 
@@ -68,7 +68,7 @@ export class VirtualConversationDatabase extends Context.Tag(
       const createVirtualConversation = (
         projectId: string,
         sessionId: string,
-        createConversations: readonly (Conversation | ErrorJsonl)[],
+        createConversations: readonly (ParsedCodexLine | ErrorJsonl)[],
       ) =>
         Effect.gen(function* () {
           yield* Ref.update(storageRef, (conversations) => {

@@ -6,7 +6,7 @@ export type CliOptions = {
   hostname: string;
   password?: string | undefined;
   executable?: string | undefined;
-  claudeDir?: string | undefined;
+  codexHome?: string | undefined;
   terminalDisabled?: boolean | undefined;
   terminalShell?: string | undefined;
   terminalUnrestricted?: boolean | undefined;
@@ -17,7 +17,7 @@ export type CcvOptions = {
   hostname: string;
   password?: string | undefined;
   executable?: string | undefined;
-  claudeDir?: string | undefined;
+  codexHome?: string | undefined;
   terminalDisabled?: boolean | undefined;
   terminalShell?: string | undefined;
   terminalUnrestricted?: boolean | undefined;
@@ -33,53 +33,61 @@ const isFlagEnabled = (value: string | undefined) => {
   return value === "1" || value.toLowerCase() === "true";
 };
 
+let sharedCcvOptions: CcvOptions | undefined;
+
+const resolveCcvOptions = (
+  cliOptions?: Partial<CliOptions> | undefined,
+): CcvOptions => {
+  const parsedPort = Number.parseInt(
+    cliOptions?.port ?? getOptionalEnv("PORT") ?? "3000",
+    10,
+  );
+
+  return {
+    port: Number.isNaN(parsedPort) ? 3000 : parsedPort,
+    hostname: cliOptions?.hostname ?? getOptionalEnv("HOSTNAME") ?? "localhost",
+    password:
+      cliOptions?.password ?? getOptionalEnv("CCV_PASSWORD") ?? undefined,
+    executable:
+      cliOptions?.executable ??
+      getOptionalEnv("CCV_CODEX_EXECUTABLE_PATH") ??
+      undefined,
+    codexHome: cliOptions?.codexHome ?? getOptionalEnv("CCV_GLOBAL_CODEX_HOME"),
+    terminalDisabled:
+      cliOptions?.terminalDisabled ??
+      (isFlagEnabled(getOptionalEnv("CCV_TERMINAL_DISABLED"))
+        ? true
+        : undefined),
+    terminalShell:
+      cliOptions?.terminalShell ??
+      getOptionalEnv("CCV_TERMINAL_SHELL") ??
+      undefined,
+    terminalUnrestricted:
+      cliOptions?.terminalUnrestricted ??
+      (isFlagEnabled(getOptionalEnv("CCV_TERMINAL_UNRESTRICTED"))
+        ? true
+        : undefined),
+  };
+};
+
 const LayerImpl = Effect.gen(function* () {
-  const ccvOptionsRef = yield* Ref.make<CcvOptions | undefined>(undefined);
+  const ccvOptionsRef = yield* Ref.make<CcvOptions>(
+    sharedCcvOptions ?? resolveCcvOptions(),
+  );
 
   const loadCliOptions = (cliOptions: CliOptions) => {
     return Effect.gen(function* () {
-      yield* Ref.update(ccvOptionsRef, () => {
-        return {
-          port: Number.parseInt(
-            cliOptions.port ?? getOptionalEnv("PORT") ?? "3000",
-            10,
-          ),
-          hostname:
-            cliOptions.hostname ?? getOptionalEnv("HOSTNAME") ?? "localhost",
-          password:
-            cliOptions.password ?? getOptionalEnv("CCV_PASSWORD") ?? undefined,
-          executable:
-            cliOptions.executable ??
-            getOptionalEnv("CCV_CC_EXECUTABLE_PATH") ??
-            undefined,
-          claudeDir:
-            cliOptions.claudeDir ?? getOptionalEnv("CCV_GLOBAL_CLAUDE_DIR"),
-          terminalDisabled:
-            cliOptions.terminalDisabled ??
-            (isFlagEnabled(getOptionalEnv("CCV_TERMINAL_DISABLED"))
-              ? true
-              : undefined),
-          terminalShell:
-            cliOptions.terminalShell ??
-            getOptionalEnv("CCV_TERMINAL_SHELL") ??
-            undefined,
-          terminalUnrestricted:
-            cliOptions.terminalUnrestricted ??
-            (isFlagEnabled(getOptionalEnv("CCV_TERMINAL_UNRESTRICTED"))
-              ? true
-              : undefined),
-        };
-      });
+      const resolved = resolveCcvOptions(cliOptions);
+      sharedCcvOptions = resolved;
+      yield* Ref.set(ccvOptionsRef, resolved);
     });
   };
 
   const getCcvOptions = <K extends keyof CcvOptions>(key: K) => {
     return Effect.gen(function* () {
-      const ccvOptions = yield* Ref.get(ccvOptionsRef);
-      if (ccvOptions === undefined) {
-        throw new Error("Unexpected error: CCV options are not loaded");
-      }
-      return ccvOptions[key];
+      const localOptions = yield* Ref.get(ccvOptionsRef);
+      const options = sharedCcvOptions ?? localOptions;
+      return options[key];
     });
   };
 

@@ -1,107 +1,89 @@
-import { FileSystem, Path } from "@effect/platform";
-import { Context, Effect, Layer, Option } from "effect";
+import { Context, Data, Effect, Layer } from "effect";
 import type { InferEffect } from "../../../lib/effect/types";
-import { ApplicationContext } from "../../platform/services/ApplicationContext";
+import { SessionIndexService } from "../../session/infrastructure/SessionIndexService";
 import type { Project } from "../../types";
 import { decodeProjectId, encodeProjectId } from "../functions/id";
 import { ProjectMetaService } from "../services/ProjectMetaService";
 
+class ProjectNotFoundError extends Data.TaggedError("ProjectNotFoundError")<{
+  projectId: string;
+}> {}
+
 const LayerImpl = Effect.gen(function* () {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
+  const sessionIndexService = yield* SessionIndexService;
   const projectMetaService = yield* ProjectMetaService;
-  const context = yield* ApplicationContext;
 
   const getProject = (projectId: string) =>
     Effect.gen(function* () {
-      const fullPath = decodeProjectId(projectId);
+      const projectPath = decodeProjectId(projectId);
+      const records = yield* sessionIndexService.getSessionIndices();
+      const projectRecords = records.filter(
+        (record) => record.cwd === projectPath,
+      );
 
-      // Check if project directory exists
-      const exists = yield* fs.exists(fullPath);
-      if (!exists) {
-        return yield* Effect.fail(new Error("Project not found"));
+      if (projectRecords.length === 0) {
+        return yield* Effect.fail(new ProjectNotFoundError({ projectId }));
       }
 
-      // Get file stats
-      const stat = yield* fs.stat(fullPath);
-
-      // Get project metadata
       const meta = yield* projectMetaService.getProjectMeta(projectId);
+      const lastModifiedAt = projectRecords.reduce(
+        (latest, record) =>
+          record.lastModifiedAt.getTime() > latest.getTime()
+            ? record.lastModifiedAt
+            : latest,
+        projectRecords[0]?.lastModifiedAt ?? new Date(),
+      );
 
       return {
         project: {
           id: projectId,
-          claudeProjectPath: fullPath,
-          lastModifiedAt: Option.getOrElse(stat.mtime, () => new Date()),
+          projectPath: projectPath,
+          lastModifiedAt,
           meta,
-        },
+        } satisfies Project,
       };
     });
 
   const getProjects = () =>
     Effect.gen(function* () {
-      // Check if the claude projects directory exists
-      const dirExists = yield* fs.exists(
-        (yield* context.claudeCodePaths).claudeProjectsDirPath,
-      );
-      if (!dirExists) {
-        console.warn(
-          `Claude projects directory not found at ${(yield* context.claudeCodePaths).claudeProjectsDirPath}`,
-        );
-        return { projects: [] };
-      }
+      const records = yield* sessionIndexService.getSessionIndices();
 
-      // Read directory entries
-      const entries = yield* fs.readDirectory(
-        (yield* context.claudeCodePaths).claudeProjectsDirPath,
-      );
+      const grouped = records.reduce((map, record) => {
+        const list = map.get(record.cwd) ?? [];
+        list.push(record);
+        map.set(record.cwd, list);
+        return map;
+      }, new Map<string, typeof records>());
 
-      // Filter directories and map to Project objects
-      const projectEffects = entries.map((entry) =>
-        Effect.gen(function* () {
-          const fullPath = path.resolve(
-            (yield* context.claudeCodePaths).claudeProjectsDirPath,
-            entry,
-          );
+      const projects = yield* Effect.all(
+        Array.from(grouped.entries()).map(([cwd, group]) =>
+          Effect.gen(function* () {
+            const id = encodeProjectId(cwd);
+            const meta = yield* projectMetaService.getProjectMeta(id);
+            const lastModifiedAt = group.reduce(
+              (latest, record) =>
+                record.lastModifiedAt.getTime() > latest.getTime()
+                  ? record.lastModifiedAt
+                  : latest,
+              group[0]?.lastModifiedAt ?? new Date(),
+            );
 
-          // Check if it's a directory
-          const stat = yield* Effect.tryPromise(() =>
-            fs.stat(fullPath).pipe(Effect.runPromise),
-          ).pipe(Effect.catchAll(() => Effect.succeed(null)));
-
-          if (!stat || stat.type !== "Directory") {
-            return null;
-          }
-
-          const id = encodeProjectId(fullPath);
-          const meta = yield* projectMetaService.getProjectMeta(id);
-
-          return {
-            id,
-            claudeProjectPath: fullPath,
-            lastModifiedAt: Option.getOrElse(stat.mtime, () => new Date()),
-            meta,
-          } satisfies Project;
-        }),
+            return {
+              id,
+              projectPath: cwd,
+              lastModifiedAt,
+              meta,
+            } satisfies Project;
+          }),
+        ),
+        { concurrency: "unbounded" },
       );
 
-      // Execute all effects in parallel and filter out nulls
-      const projectsWithNulls = yield* Effect.all(projectEffects, {
-        concurrency: "unbounded",
-      });
-      const projects = projectsWithNulls.filter(
-        (p): p is Project => p !== null,
-      );
-
-      // Sort by last modified date (newest first)
-      const sortedProjects = projects.sort((a, b) => {
-        return (
-          (b.lastModifiedAt ? b.lastModifiedAt.getTime() : 0) -
-          (a.lastModifiedAt ? a.lastModifiedAt.getTime() : 0)
-        );
-      });
-
-      return { projects: sortedProjects };
+      return {
+        projects: projects.toSorted(
+          (a, b) => b.lastModifiedAt.getTime() - a.lastModifiedAt.getTime(),
+        ),
+      };
     });
 
   return {

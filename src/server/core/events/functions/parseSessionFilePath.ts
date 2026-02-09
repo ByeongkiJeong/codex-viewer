@@ -1,62 +1,30 @@
-import z from "zod";
-
-const sessionFileRegExp = /(?<projectId>.*?)\/(?<sessionId>.*?)\.jsonl$/;
-const agentFileRegExp =
-  /(?<projectId>.*?)\/agent-(?<agentSessionId>.*?)\.jsonl$/;
-
-const sessionFileGroupSchema = z.object({
-  projectId: z.string(),
-  sessionId: z.string(),
-});
-
-const agentFileGroupSchema = z.object({
-  projectId: z.string(),
-  agentSessionId: z.string(),
-});
+const rolloutFileRegExp =
+  /(?:^|\/)rollout-[^/]*-(?<threadId>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i;
 
 export type SessionFileMatch = {
   type: "session";
-  projectId: string;
+  threadId: string;
   sessionId: string;
 };
 
-export type AgentFileMatch = {
-  type: "agent";
-  projectId: string;
-  agentSessionId: string;
-};
-
-export type FileMatch = SessionFileMatch | AgentFileMatch | null;
+export type FileMatch = SessionFileMatch | null;
 
 /**
- * Parses a file path to determine if it's a regular session file or an agent session file.
- * Agent files take precedence in matching (checked first).
+ * Parses a codex rollout file path.
  *
- * @param filePath - The relative file path from the claude projects directory
- * @returns FileMatch object with type and extracted IDs, or null if not a recognized file
+ * @param filePath - The relative file path from the codex sessions directory
+ * @returns Session match with threadId/sessionId, or null if the path is not a rollout jsonl file
  */
 export const parseSessionFilePath = (filePath: string): FileMatch => {
-  // Check for agent file first (more specific pattern)
-  const agentMatch = filePath.match(agentFileRegExp);
-  const agentGroups = agentFileGroupSchema.safeParse(agentMatch?.groups);
-  if (agentGroups.success) {
-    return {
-      type: "agent",
-      projectId: agentGroups.data.projectId,
-      agentSessionId: agentGroups.data.agentSessionId,
-    };
+  const match = filePath.match(rolloutFileRegExp);
+  const threadId = match?.groups?.threadId;
+  if (threadId === undefined) {
+    return null;
   }
 
-  // Check for regular session file
-  const sessionMatch = filePath.match(sessionFileRegExp);
-  const sessionGroups = sessionFileGroupSchema.safeParse(sessionMatch?.groups);
-  if (sessionGroups.success) {
-    return {
-      type: "session",
-      projectId: sessionGroups.data.projectId,
-      sessionId: sessionGroups.data.sessionId,
-    };
-  }
-
-  return null;
+  return {
+    type: "session",
+    threadId,
+    sessionId: threadId,
+  };
 };

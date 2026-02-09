@@ -5,10 +5,9 @@ import {
   encodeProjectIdFromSessionFilePath,
 } from "./id";
 
-const sampleProjectPath =
-  "/path/to/claude-code-project-dir/projects/sample-project";
+const sampleProjectPath = "/path/to/codex-project-dir/projects/sample-project";
 const sampleProjectId =
-  "L3BhdGgvdG8vY2xhdWRlLWNvZGUtcHJvamVjdC1kaXIvcHJvamVjdHMvc2FtcGxlLXByb2plY3Q";
+  "L3BhdGgvdG8vY29kZXgtcHJvamVjdC1kaXIvcHJvamVjdHMvc2FtcGxlLXByb2plY3Q";
 
 describe("encodeProjectId", () => {
   it("should encode project id from project path", () => {

@@ -1,8 +1,8 @@
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 
-export const claudeCodeViewerCacheDirPath = resolve(
+export const codexViewerCacheDirPath = resolve(
   homedir(),
-  ".claude-code-viewer",
+  ".codex-viewer",
   "cache",
 );

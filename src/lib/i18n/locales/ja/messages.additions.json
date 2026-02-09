@@ -84,7 +84,7 @@
     "translation": "設定"
   },
   "settings.title": {
-    "translation": "Claude Code 設定"
+    "translation": "Codex 設定"
   },
   "settings.forkSession": {
     "translation": "セッションをフォーク（現在のセッションを元に新規作成）"
@@ -96,7 +96,7 @@
     "translation": "無効化ツール"
   },
   "settings.systemPrompt.usePreset": {
-    "translation": "Claude Code 標準のシステムプロンプトを使用"
+    "translation": "Codex 標準のシステムプロンプトを使用"
   },
   "settings.systemPrompt.additional": {
     "translation": "追加システムプロンプト"
@@ -139,9 +139,6 @@
   },
   "settings.maxThinkingTokens.label": {
     "translation": "最大思考トークン数"
-  },
-  "settings.maxBudgetUsd.label": {
-    "translation": "最大予算 (USD)"
   },
   "panel.tab.git": {
     "translation": "Git"

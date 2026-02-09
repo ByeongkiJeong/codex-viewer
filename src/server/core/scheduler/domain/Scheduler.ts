@@ -11,6 +11,9 @@ import {
 } from "effect";
 import { ulid } from "ulid";
 import type { InferEffect } from "../../../lib/effect/types";
+import { CodexLifeCycleService } from "../../codex-runtime/services/CodexLifeCycleService";
+import { CodexSessionProcessService } from "../../codex-runtime/services/CodexSessionProcessService";
+import { ProjectRepository } from "../../project/infrastructure/ProjectRepository";
 import { initializeConfig, readConfig, writeConfig } from "../config";
 import type {
   NewSchedulerJob,
@@ -34,6 +37,10 @@ class InvalidCronExpressionError extends Data.TaggedError(
 }> {}
 
 const LayerImpl = Effect.gen(function* () {
+  const lifeCycleService = yield* CodexLifeCycleService;
+  const sessionProcessService = yield* CodexSessionProcessService;
+  const projectRepository = yield* ProjectRepository;
+
   const fibersRef = yield* Ref.make<
     Map<string, Fiber.RuntimeFiber<unknown, unknown>>
   >(new Map());
@@ -111,7 +118,11 @@ const LayerImpl = Effect.gen(function* () {
 
       // For reserved jobs, delete after execution without updating status
       if (job.schedule.type === "reserved") {
-        const result = yield* executeJob(job).pipe(
+        const result = yield* executeJob(job, {
+          lifeCycleService,
+          sessionProcessService,
+          projectRepository,
+        }).pipe(
           Effect.matchEffect({
             onSuccess: () => Effect.void,
             onFailure: () => Effect.void,
@@ -138,7 +149,11 @@ const LayerImpl = Effect.gen(function* () {
       }
 
       // For non-reserved jobs, update status
-      const result = yield* executeJob(job).pipe(
+      const result = yield* executeJob(job, {
+        lifeCycleService,
+        sessionProcessService,
+        projectRepository,
+      }).pipe(
         Effect.matchEffect({
           onSuccess: () =>
             updateJobStatus(job.id, "success", new Date().toISOString()),

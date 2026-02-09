@@ -11,6 +11,30 @@ import { Button } from "@/components/ui/button";
 import { Loading } from "../../../../../../../components/Loading";
 import { mcpListQuery } from "../../../../../../../lib/api/queries";
 
+type McpServer = {
+  name: string;
+  command: string;
+  status: "connected" | "failed" | "unknown";
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null;
+};
+
+const isMcpServer = (value: unknown): value is McpServer => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.name === "string" &&
+    typeof value.command === "string" &&
+    (value.status === "connected" ||
+      value.status === "failed" ||
+      value.status === "unknown")
+  );
+};
+
 export const McpTab: FC<{ projectId: string }> = ({ projectId }) => {
   const queryClient = useQueryClient();
   const { i18n } = useLingui();
@@ -34,6 +58,10 @@ export const McpTab: FC<{ projectId: string }> = ({ projectId }) => {
       queryKey: mcpListQuery(projectId).queryKey,
     });
   };
+
+  const servers = Array.isArray(mcpData?.servers)
+    ? mcpData.servers.filter(isMcpServer)
+    : [];
 
   return (
     <div className="flex flex-col h-full">
@@ -75,15 +103,15 @@ export const McpTab: FC<{ projectId: string }> = ({ projectId }) => {
           </div>
         )}
 
-        {mcpData && mcpData.servers.length === 0 && (
+        {mcpData && servers.length === 0 && (
           <div className="text-sm text-muted-foreground text-center py-8">
             <Trans id="mcp.no.servers" />
           </div>
         )}
 
-        {mcpData && mcpData.servers.length > 0 && (
+        {mcpData && servers.length > 0 && (
           <div className="space-y-3">
-            {mcpData.servers.map((server) => (
+            {servers.map((server) => (
               <div
                 key={server.name}
                 className={`p-3 bg-sidebar-accent/50 rounded-md border ${

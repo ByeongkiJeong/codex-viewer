@@ -6,7 +6,7 @@ import { EventBus } from "../../server/core/events/services/EventBus";
 import type { EnvSchema } from "../../server/core/platform/schema";
 import {
   ApplicationContext,
-  type ClaudeCodePaths,
+  type CodexPaths,
 } from "../../server/core/platform/services/ApplicationContext";
 import {
   type CcvOptions,
@@ -16,43 +16,53 @@ import { EnvService } from "../../server/core/platform/services/EnvService";
 import { UserConfigService } from "../../server/core/platform/services/UserConfigService";
 import type { UserConfig } from "../../server/lib/config/config";
 
-const claudeDirForTest = resolve(process.cwd(), "mock-global-claude-dir");
+const codexHomeForTest = resolve(process.cwd(), "mock-global-codex-dir");
 
 export const testPlatformLayer = (overrides?: {
-  claudeCodePaths?: Partial<ClaudeCodePaths>;
+  codexPaths?: Partial<CodexPaths>;
   env?: Partial<EnvSchema>;
   userConfig?: Partial<UserConfig>;
   ccvOptions?: Partial<CcvOptions>;
 }) => {
+  const resolvedCcvOptions: CcvOptions = {
+    port: overrides?.ccvOptions?.port ?? 3401,
+    hostname: overrides?.ccvOptions?.hostname ?? "localhost",
+    password: overrides?.ccvOptions?.password,
+    executable: overrides?.ccvOptions?.executable,
+    codexHome: overrides?.ccvOptions?.codexHome,
+    terminalDisabled: overrides?.ccvOptions?.terminalDisabled,
+    terminalShell: overrides?.ccvOptions?.terminalShell,
+    terminalUnrestricted: overrides?.ccvOptions?.terminalUnrestricted,
+  };
+
+  const resolvedEnv: EnvSchema = {
+    CCV_ENV: overrides?.env?.CCV_ENV ?? "development",
+    NEXT_PHASE: overrides?.env?.NEXT_PHASE ?? "phase-test",
+    PATH: overrides?.env?.PATH,
+    SHELL: overrides?.env?.SHELL,
+    CCV_TERMINAL_SHELL: overrides?.env?.CCV_TERMINAL_SHELL,
+    CCV_TERMINAL_UNRESTRICTED: overrides?.env?.CCV_TERMINAL_UNRESTRICTED,
+    CCV_TERMINAL_DISABLED: overrides?.env?.CCV_TERMINAL_DISABLED,
+  };
+
   const applicationContextLayer = Layer.mock(ApplicationContext, {
-    claudeCodePaths: Effect.succeed({
-      globalClaudeDirectoryPath: resolve(claudeDirForTest),
-      claudeCommandsDirPath: resolve(claudeDirForTest, "commands"),
-      claudeSkillsDirPath: resolve(claudeDirForTest, "skills"),
-      claudeProjectsDirPath: resolve(claudeDirForTest, "projects"),
-      ...overrides?.claudeCodePaths,
+    codexPaths: Effect.succeed({
+      globalCodexDirectoryPath: resolve(codexHomeForTest),
+      codexSkillsDirPath: resolve(codexHomeForTest, "skills"),
+      codexSessionsDirPath: resolve(codexHomeForTest, "sessions"),
+      codexTasksDirPath: resolve(codexHomeForTest, "tasks"),
+      ...overrides?.codexPaths,
     }),
   });
 
   const ccvOptionsServiceLayer = Layer.mock(CcvOptionsService, {
     getCcvOptions: <Key extends keyof CcvOptions>(key: Key) =>
-      Effect.sync((): CcvOptions[Key] => {
-        return overrides?.ccvOptions?.[key] as CcvOptions[Key];
-      }),
+      Effect.succeed(resolvedCcvOptions[key]),
   });
 
   const envServiceLayer = Layer.mock(EnvService, {
     getEnv: <Key extends keyof EnvSchema>(key: Key) =>
-      Effect.sync(() => {
-        switch (key) {
-          case "CCV_ENV":
-            return overrides?.env?.CCV_ENV ?? "development";
-          case "NEXT_PHASE":
-            return overrides?.env?.NEXT_PHASE ?? "phase-test";
-          default:
-            return overrides?.env?.[key] ?? undefined;
-        }
-      }) as Effect.Effect<EnvSchema[Key]>,
+      Effect.succeed(resolvedEnv[key]),
   });
 
   const userConfigServiceLayer = Layer.mock(UserConfigService, {

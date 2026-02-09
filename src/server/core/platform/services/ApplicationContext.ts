@@ -4,44 +4,38 @@ import { Effect, Context as EffectContext, Layer } from "effect";
 import type { InferEffect } from "../../../lib/effect/types";
 import { CcvOptionsService } from "./CcvOptionsService";
 
-export type ClaudeCodePaths = {
-  globalClaudeDirectoryPath: string;
-  claudeCommandsDirPath: string;
-  claudeSkillsDirPath: string;
-  claudeProjectsDirPath: string;
+export type CodexPaths = {
+  globalCodexDirectoryPath: string;
+  codexSkillsDirPath: string;
+  codexSessionsDirPath: string;
+  codexTasksDirPath: string;
 };
 
 const LayerImpl = Effect.gen(function* () {
   const path = yield* Path.Path;
   const ccvOptionsService = yield* CcvOptionsService;
 
-  const claudeCodePaths = Effect.gen(function* () {
-    const globalClaudeDirectoryPath = yield* ccvOptionsService
-      .getCcvOptions("claudeDir")
+  const codexPaths = Effect.gen(function* () {
+    const globalCodexDirectoryPath = yield* ccvOptionsService
+      .getCcvOptions("codexHome")
       .pipe(
         Effect.map((envVar) =>
           envVar === undefined
-            ? path.resolve(homedir(), ".claude")
+            ? path.resolve(homedir(), ".codex")
             : path.resolve(envVar),
         ),
       );
 
     return {
-      globalClaudeDirectoryPath,
-      claudeCommandsDirPath: path.resolve(
-        globalClaudeDirectoryPath,
-        "commands",
-      ),
-      claudeSkillsDirPath: path.resolve(globalClaudeDirectoryPath, "skills"),
-      claudeProjectsDirPath: path.resolve(
-        globalClaudeDirectoryPath,
-        "projects",
-      ),
-    } as const satisfies ClaudeCodePaths;
+      globalCodexDirectoryPath,
+      codexSkillsDirPath: path.resolve(globalCodexDirectoryPath, "skills"),
+      codexSessionsDirPath: path.resolve(globalCodexDirectoryPath, "sessions"),
+      codexTasksDirPath: path.resolve(globalCodexDirectoryPath, "tasks"),
+    } as const satisfies CodexPaths;
   });
 
   return {
-    claudeCodePaths,
+    codexPaths,
   };
 });
 

@@ -1,4 +1,4 @@
-import type { ParsedUserMessage } from "../../../../server/core/claude-code/functions/parseUserMessage";
+import type { ParsedUserMessage } from "../../../../server/core/session/functions/parseUserMessage";
 
 const stripLocalCommandCaveat = (text: string) => {
   return text

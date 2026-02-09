@@ -1,5 +1,6 @@
 import { Effect, Layer, Ref } from "effect";
 import { describe, expect, it } from "vitest";
+import { testFileSystemLayer } from "../../testing/layers/testFileSystemLayer";
 import { testPlatformLayer } from "../../testing/layers/testPlatformLayer";
 import { testProjectMetaServiceLayer } from "../../testing/layers/testProjectMetaServiceLayer";
 import { testProjectRepositoryLayer } from "../../testing/layers/testProjectRepositoryLayer";
@@ -9,7 +10,6 @@ import { EventBus } from "../core/events/services/EventBus";
 import { FileWatcherService } from "../core/events/services/fileWatcher";
 import type { InternalEventDeclaration } from "../core/events/types/InternalEventDeclaration";
 import { ProjectRepository } from "../core/project/infrastructure/ProjectRepository";
-import { RateLimitAutoScheduleService } from "../core/rate-limit/services/RateLimitAutoScheduleService";
 import { VirtualConversationDatabase } from "../core/session/infrastructure/VirtualConversationDatabase";
 import { createMockSessionMeta } from "../core/session/testing/createMockSessionMeta";
 import { InitializeService } from "./initialize";
@@ -18,19 +18,9 @@ const fileWatcherWithEventBus = FileWatcherService.Live.pipe(
   Layer.provide(EventBus.Live),
 );
 
-// Mock RateLimitAutoScheduleService for testing
-const mockRateLimitAutoScheduleService = Layer.succeed(
-  RateLimitAutoScheduleService,
-  {
-    start: () => Effect.void,
-    stop: () => Effect.void,
-  },
-);
-
 const allDependencies = Layer.mergeAll(
   fileWatcherWithEventBus,
   VirtualConversationDatabase.Live,
-  mockRateLimitAutoScheduleService,
   testProjectMetaServiceLayer({
     meta: {
       projectName: "Test Project",
@@ -44,6 +34,7 @@ const allDependencies = Layer.mergeAll(
       firstUserMessage: null,
     }),
   }),
+  testFileSystemLayer(),
   testPlatformLayer(),
 );
 
@@ -68,7 +59,7 @@ describe("InitializeService", () => {
               projects: [
                 {
                   id: "project-1",
-                  claudeProjectPath: "/path/to/project-1",
+                  projectPath: "/path/to/project-1",
                   lastModifiedAt: new Date(),
                   meta: {
                     projectName: "Project 1",
@@ -106,6 +97,7 @@ describe("InitializeService", () => {
               ],
             }),
           ),
+          Effect.provide(testFileSystemLayer()),
           Effect.provide(testPlatformLayer()),
         ),
       );
@@ -129,6 +121,7 @@ describe("InitializeService", () => {
           Effect.provide(sharedTestLayer),
           Effect.provide(testProjectRepositoryLayer()),
           Effect.provide(testSessionRepositoryLayer()),
+          Effect.provide(testFileSystemLayer()),
           Effect.provide(testPlatformLayer()),
         ),
       );
@@ -171,6 +164,7 @@ describe("InitializeService", () => {
           Effect.provide(sharedTestLayer),
           Effect.provide(testProjectRepositoryLayer()),
           Effect.provide(testSessionRepositoryLayer()),
+          Effect.provide(testFileSystemLayer()),
           Effect.provide(testPlatformLayer()),
         ),
       );
@@ -208,6 +202,7 @@ describe("InitializeService", () => {
           Effect.provide(sharedTestLayer),
           Effect.provide(testProjectRepositoryLayer()),
           Effect.provide(testSessionRepositoryLayer()),
+          Effect.provide(testFileSystemLayer()),
           Effect.provide(testPlatformLayer()),
         ),
       );
@@ -219,10 +214,22 @@ describe("InitializeService", () => {
   });
 
   describe("cache initialization", () => {
-    it("doesn't throw error even if cache initialization fails", async () => {
+    it("propagates defects from cache initialization dependencies", async () => {
       const mockProjectRepositoryLayer = Layer.mock(ProjectRepository, {
-        getProjects: () => Effect.fail(new Error("Failed to get projects")),
-        getProject: () => Effect.fail(new Error("Not implemented in mock")),
+        getProjects: () => Effect.die(new Error("Failed to get projects")),
+        getProject: (projectId: string) =>
+          Effect.succeed({
+            project: {
+              id: projectId,
+              projectPath: "/tmp/mock-project",
+              lastModifiedAt: new Date(),
+              meta: {
+                projectName: "mock",
+                projectPath: "/tmp/mock-project",
+                sessionCount: 0,
+              },
+            },
+          }),
       });
 
       const program = Effect.gen(function* () {
@@ -230,17 +237,17 @@ describe("InitializeService", () => {
         return yield* initialize.startInitialization();
       });
 
-      // Completes without throwing error
       await expect(
         Effect.runPromise(
           program.pipe(
             Effect.provide(sharedTestLayer),
             Effect.provide(mockProjectRepositoryLayer),
             Effect.provide(testSessionRepositoryLayer()),
+            Effect.provide(testFileSystemLayer()),
             Effect.provide(testPlatformLayer()),
           ),
         ),
-      ).resolves.toBeUndefined();
+      ).rejects.toThrow("Failed to get projects");
     });
   });
 
@@ -258,6 +265,7 @@ describe("InitializeService", () => {
           Effect.provide(sharedTestLayer),
           Effect.provide(testProjectRepositoryLayer()),
           Effect.provide(testSessionRepositoryLayer()),
+          Effect.provide(testFileSystemLayer()),
           Effect.provide(testPlatformLayer()),
         ),
       );

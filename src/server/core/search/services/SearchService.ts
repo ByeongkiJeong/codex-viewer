@@ -1,13 +1,10 @@
-import { FileSystem, Path } from "@effect/platform";
+import { Path } from "@effect/platform";
 import { Context, Effect, Layer, Ref } from "effect";
 import MiniSearch from "minisearch";
+import type { ParsedCodexLine } from "../../../../lib/codex-conversation-schema/parseCodexJsonl";
 import type { InferEffect } from "../../../lib/effect/types";
-import { parseJsonl } from "../../claude-code/functions/parseJsonl";
-import { ApplicationContext } from "../../platform/services/ApplicationContext";
 import { encodeProjectId } from "../../project/functions/id";
-import { encodeSessionId } from "../../session/functions/id";
-import { isRegularSessionFile } from "../../session/functions/isRegularSessionFile";
-import { extractSearchableText } from "../functions/extractSearchableText";
+import { SessionIndexService } from "../../session/infrastructure/SessionIndexService";
 
 export type SearchResult = {
   projectId: string;
@@ -37,9 +34,8 @@ type IndexCache = {
   builtAt: number;
 };
 
-const INDEX_TTL_MS = 60_000; // Cache index for 1 minute
-const MAX_TEXT_LENGTH = 2000; // Limit indexed text to reduce memory
-const MAX_ASSISTANT_TEXT_LENGTH = 500; // Assistant responses less important
+const INDEX_TTL_MS = 60_000;
+const MAX_TEXT_LENGTH = 2000;
 
 const createMiniSearchIndex = () =>
   new MiniSearch<SearchDocument>({
@@ -52,179 +48,230 @@ const createMiniSearchIndex = () =>
     },
   });
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getStringField = (value: unknown, key: string): string | null => {
+  if (!isRecord(value)) return null;
+  const field = value[key];
+  return typeof field === "string" ? field : null;
+};
+
+const extractContentText = (content: unknown): string[] => {
+  if (!Array.isArray(content)) {
+    return [];
+  }
+
+  const result: string[] = [];
+  for (const item of content) {
+    if (typeof item === "string") {
+      if (item.trim().length > 0) {
+        result.push(item.trim());
+      }
+      continue;
+    }
+
+    if (!isRecord(item)) {
+      continue;
+    }
+
+    const text = getStringField(item, "text");
+    if (text !== null && text.trim().length > 0) {
+      result.push(text.trim());
+      continue;
+    }
+
+    const input = getStringField(item, "input");
+    if (input !== null && input.trim().length > 0) {
+      result.push(input.trim());
+    }
+  }
+
+  return result;
+};
+
+const extractSearchableLine = (
+  line: ParsedCodexLine,
+): { text: string; type: "user" | "assistant" } | null => {
+  if (line.type !== "response_item") {
+    return null;
+  }
+
+  const payload = line.payload;
+  const payloadType = getStringField(payload, "type");
+  if (payloadType === null) {
+    return null;
+  }
+
+  if (payloadType === "message") {
+    const role = getStringField(payload, "role");
+    const content = extractContentText(
+      isRecord(payload) ? payload.content : undefined,
+    );
+    const text = content.join("\n").trim();
+    if (text.length === 0) {
+      return null;
+    }
+
+    return {
+      text,
+      type: role === "user" ? "user" : "assistant",
+    };
+  }
+
+  if (payloadType === "reasoning") {
+    const summary = getStringField(payload, "summary");
+    const text = summary ?? extractContentText(payload).join("\n");
+    if (text.trim().length === 0) {
+      return null;
+    }
+    return {
+      text,
+      type: "assistant",
+    };
+  }
+
+  if (
+    payloadType === "function_call" ||
+    payloadType === "custom_tool_call" ||
+    payloadType === "function_call_output" ||
+    payloadType === "custom_tool_call_output"
+  ) {
+    const name =
+      getStringField(payload, "name") ??
+      getStringField(payload, "call_id") ??
+      payloadType;
+    const argumentsText =
+      getStringField(payload, "arguments") ??
+      getStringField(payload, "output") ??
+      "";
+    const text = `${name} ${argumentsText}`.trim();
+    if (text.length === 0) {
+      return null;
+    }
+
+    return {
+      text,
+      type: "assistant",
+    };
+  }
+
+  return null;
+};
+
 const LayerImpl = Effect.gen(function* () {
-  const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const context = yield* ApplicationContext;
+  const sessionIndexService = yield* SessionIndexService;
   const indexCacheRef = yield* Ref.make<IndexCache | null>(null);
 
   const buildIndex = () =>
     Effect.gen(function* () {
-      const { claudeProjectsDirPath } = yield* context.claudeCodePaths;
-
-      const dirExists = yield* fs.exists(claudeProjectsDirPath);
-      if (!dirExists) {
-        return { index: createMiniSearchIndex(), documents: new Map() };
-      }
-
-      const projectEntries = yield* fs.readDirectory(claudeProjectsDirPath);
+      const sessions = yield* sessionIndexService.getSessionIndices();
       const miniSearch = createMiniSearchIndex();
 
-      const documentEffects = projectEntries.map((projectEntry) =>
-        Effect.gen(function* () {
-          const projectPath = path.resolve(claudeProjectsDirPath, projectEntry);
-          const stat = yield* fs
-            .stat(projectPath)
-            .pipe(Effect.catchAll(() => Effect.succeed(null)));
+      const docs: SearchDocument[] = [];
+      for (const session of sessions) {
+        const projectId = encodeProjectId(session.cwd);
+        const projectName = path.basename(session.cwd);
 
-          if (stat?.type !== "Directory") {
-            return [];
+        for (let i = 0; i < session.parsedLines.length; i++) {
+          const line = session.parsedLines[i];
+          if (line === undefined) {
+            continue;
           }
 
-          const projectId = encodeProjectId(projectPath);
-          const projectName = path.basename(projectPath);
+          const extracted = extractSearchableLine(line);
+          if (extracted === null) {
+            continue;
+          }
 
-          const sessionEntries = yield* fs
-            .readDirectory(projectPath)
-            .pipe(Effect.catchAll(() => Effect.succeed([])));
+          const text =
+            extracted.text.length > MAX_TEXT_LENGTH
+              ? extracted.text.slice(0, MAX_TEXT_LENGTH)
+              : extracted.text;
 
-          const sessionFiles = sessionEntries.filter(isRegularSessionFile);
-
-          const sessionDocuments = yield* Effect.all(
-            sessionFiles.map((sessionFile) =>
-              Effect.gen(function* () {
-                const sessionPath = path.resolve(projectPath, sessionFile);
-                const sessionId = encodeSessionId(sessionPath);
-
-                const content = yield* fs
-                  .readFileString(sessionPath)
-                  .pipe(Effect.catchAll(() => Effect.succeed("")));
-
-                if (!content) return [];
-
-                const conversations = parseJsonl(content);
-                const documents: SearchDocument[] = [];
-
-                for (let i = 0; i < conversations.length; i++) {
-                  const conversation = conversations[i];
-                  if (conversation === undefined) continue;
-                  if (
-                    conversation.type !== "user" &&
-                    conversation.type !== "assistant"
-                  ) {
-                    continue;
-                  }
-
-                  let text = extractSearchableText(conversation);
-                  if (!text || text.length < 3) continue;
-
-                  // Truncate text to reduce memory usage
-                  // User prompts get more space as they're more relevant
-                  const maxLen =
-                    conversation.type === "user"
-                      ? MAX_TEXT_LENGTH
-                      : MAX_ASSISTANT_TEXT_LENGTH;
-                  if (text.length > maxLen) {
-                    text = text.slice(0, maxLen);
-                  }
-
-                  documents.push({
-                    id: `${sessionId}:${i}`,
-                    projectId,
-                    projectName,
-                    sessionId,
-                    conversationIndex: i,
-                    type: conversation.type,
-                    text,
-                    timestamp:
-                      "timestamp" in conversation ? conversation.timestamp : "",
-                  });
-                }
-
-                return documents;
-              }),
-            ),
-            { concurrency: 20 },
-          );
-
-          return sessionDocuments.flat();
-        }),
-      );
-
-      const allDocuments = yield* Effect.all(documentEffects, {
-        concurrency: 10,
-      });
-      const flatDocuments = allDocuments.flat();
-
-      miniSearch.addAll(flatDocuments);
-
-      const documentsMap = new Map<string, SearchDocument>();
-      for (const doc of flatDocuments) {
-        documentsMap.set(doc.id, doc);
+          docs.push({
+            id: `${session.threadId}:${i}`,
+            projectId,
+            projectName,
+            sessionId: session.threadId,
+            conversationIndex: i,
+            type: extracted.type,
+            text,
+            timestamp:
+              line.type === "x-error"
+                ? ""
+                : typeof line.timestamp === "string"
+                  ? line.timestamp
+                  : "",
+          });
+        }
       }
 
-      return { index: miniSearch, documents: documentsMap };
+      miniSearch.addAll(docs);
+
+      const docMap = new Map<string, SearchDocument>();
+      for (const doc of docs) {
+        docMap.set(doc.id, doc);
+      }
+
+      return {
+        index: miniSearch,
+        documents: docMap,
+      };
     });
 
   const getIndex = () =>
     Effect.gen(function* () {
       const cached = yield* Ref.get(indexCacheRef);
       const now = Date.now();
-
-      if (cached && now - cached.builtAt < INDEX_TTL_MS) {
-        return { index: cached.index, documents: cached.documents };
+      if (cached !== null && now - cached.builtAt < INDEX_TTL_MS) {
+        return cached;
       }
 
-      const { index, documents } = yield* buildIndex();
-      yield* Ref.set(indexCacheRef, { index, documents, builtAt: now });
-      return { index, documents };
+      const built = yield* buildIndex();
+      const next: IndexCache = {
+        index: built.index,
+        documents: built.documents,
+        builtAt: now,
+      };
+      yield* Ref.set(indexCacheRef, next);
+      return next;
     });
 
   const search = (query: string, limit = 20, projectId?: string) =>
     Effect.gen(function* () {
-      const { claudeProjectsDirPath } = yield* context.claudeCodePaths;
-
-      const dirExists = yield* fs.exists(claudeProjectsDirPath);
-      if (!dirExists) {
+      if (query.trim().length === 0) {
         return { results: [] as SearchResult[] };
       }
 
-      const { index: miniSearch, documents } = yield* getIndex();
-
-      const searchResults = miniSearch.search(query).slice(0, limit * 2); // fetch extra to account for filtering
-
+      const { index, documents } = yield* getIndex();
+      const searchResults = index.search(query).slice(0, limit * 2);
       const results: SearchResult[] = [];
+
       for (const result of searchResults) {
-        if (results.length >= limit) break;
+        if (results.length >= limit) {
+          break;
+        }
 
         const doc = documents.get(String(result.id));
-        if (!doc) continue;
-
-        // Filter by projectId if provided
-        if (projectId && doc.projectId !== projectId) continue;
-
-        // Minor boost for user messages (your prompts)
-        const score = doc.type === "user" ? result.score * 1.2 : result.score;
-
-        const snippetLength = 150;
-        const text = doc.text;
-        const queryLower = query.toLowerCase();
-        const textLower = text.toLowerCase();
-        const matchIndex = textLower.indexOf(queryLower);
-
-        let snippet: string;
-        if (matchIndex !== -1) {
-          const start = Math.max(0, matchIndex - 50);
-          const end = Math.min(text.length, start + snippetLength);
-          snippet =
-            (start > 0 ? "..." : "") +
-            text.slice(start, end) +
-            (end < text.length ? "..." : "");
-        } else {
-          snippet =
-            text.slice(0, snippetLength) +
-            (text.length > snippetLength ? "..." : "");
+        if (doc === undefined) {
+          continue;
         }
+
+        if (projectId !== undefined && doc.projectId !== projectId) {
+          continue;
+        }
+
+        const queryLower = query.toLowerCase();
+        const textLower = doc.text.toLowerCase();
+        const matchIndex = textLower.indexOf(queryLower);
+        const start = matchIndex === -1 ? 0 : Math.max(0, matchIndex - 50);
+        const end = Math.min(doc.text.length, start + 150);
+        const snippet =
+          (start > 0 ? "..." : "") +
+          doc.text.slice(start, end) +
+          (end < doc.text.length ? "..." : "");
 
         results.push({
           projectId: doc.projectId,
@@ -234,11 +281,13 @@ const LayerImpl = Effect.gen(function* () {
           type: doc.type,
           snippet,
           timestamp: doc.timestamp,
-          score,
+          score: result.score,
         });
       }
 
-      return { results };
+      return {
+        results,
+      };
     });
 
   const invalidateIndex = () => Ref.set(indexCacheRef, null);

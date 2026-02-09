@@ -2,7 +2,6 @@ import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import type { PermissionRequest } from "../../../../types/permissions";
 import type { PublicSessionProcess } from "../../../../types/session-process";
-import type { CCSessionProcessState } from "../../claude-code/models/CCSessionProcess";
 import type { InternalEventDeclaration } from "../types/InternalEventDeclaration";
 import { EventBus } from "./EventBus";
 
@@ -156,28 +155,6 @@ describe("EventBus", () => {
 
         yield* eventBus.on("sessionProcessChanged", listener);
 
-        const mockProcess: CCSessionProcessState = {
-          type: "initialized",
-          sessionId: "session-1",
-          currentTask: {
-            status: "running",
-            def: {
-              type: "new",
-              turnId: "task-1",
-            },
-          },
-          rawUserMessage: "test message",
-          initContext: {} as never,
-          def: {
-            sessionProcessId: "process-1",
-            projectId: "project-1",
-            cwd: "/test/path",
-            abortController: new AbortController(),
-            setNextMessage: () => {},
-          },
-          tasks: [],
-        };
-
         const publicProcess: PublicSessionProcess = {
           id: "process-1",
           projectId: "project-1",
@@ -187,7 +164,7 @@ describe("EventBus", () => {
 
         yield* eventBus.emit("sessionProcessChanged", {
           processes: [publicProcess],
-          changed: mockProcess,
+          changed: publicProcess,
         });
 
         yield* Effect.sleep("10 millis");
@@ -219,6 +196,8 @@ describe("EventBus", () => {
 
         const mockPermissionRequest: PermissionRequest = {
           id: "permission-1",
+          kind: "commandExecution",
+          sessionId: "session-1",
           turnId: "task-1",
           toolName: "read",
           toolInput: {},
@@ -247,7 +226,6 @@ describe("EventBus", () => {
     it("errors thrown by listeners don't affect other listeners", async () => {
       const program = Effect.gen(function* () {
         const eventBus = yield* EventBus;
-        const events1: Array<InternalEventDeclaration["heartbeat"]> = [];
         const events2: Array<InternalEventDeclaration["heartbeat"]> = [];
 
         const failingListener = (
@@ -268,14 +246,13 @@ describe("EventBus", () => {
         yield* eventBus.emit("heartbeat", {});
         yield* Effect.sleep("10 millis");
 
-        return { events1, events2 };
+        return { events2 };
       });
 
       const result = await Effect.runPromise(
         program.pipe(Effect.provide(EventBus.Live)),
       );
 
-      // failingListener fails, but successListener works normally
       expect(result.events2).toHaveLength(1);
     });
   });

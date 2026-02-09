@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { ToolUseContent } from "../conversation-schema/content/ToolUseContentSchema";
 import { extractEditedFilePaths } from "./extractEditedFilePaths";
+
+type ToolUseContent = {
+  type: "tool_use";
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+};
 
 describe("extractEditedFilePaths", () => {
   describe("Write tool", () => {

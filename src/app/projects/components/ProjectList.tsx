@@ -42,7 +42,7 @@ export const ProjectList: FC = () => {
             <CardTitle className="flex items-center gap-2 justify-start items-start">
               <FolderIcon className="w-5 h-5 flex-shrink-0" />
               <span className="text-wrap flex-1">
-                {project.meta.projectName ?? project.claudeProjectPath}
+                {project.meta.projectName ?? project.projectPath}
               </span>
             </CardTitle>
             {project.meta.projectPath ? (

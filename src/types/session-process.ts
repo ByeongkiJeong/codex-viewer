@@ -2,5 +2,5 @@ export type PublicSessionProcess = {
   id: string;
   projectId: string;
   sessionId: string;
-  status: "paused" | "running";
+  status: "running" | "paused" | "awaiting_approval" | "completed";
 };

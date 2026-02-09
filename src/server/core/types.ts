@@ -1,11 +1,14 @@
 import type { z } from "zod";
-import type { Conversation } from "../../lib/conversation-schema";
+import type {
+  CodexParseErrorLine,
+  ParsedCodexLine,
+} from "../../lib/codex-conversation-schema/parseCodexJsonl";
 import type { projectMetaSchema } from "./project/schema";
 import type { sessionMetaSchema } from "./session/schema";
 
 export type Project = {
   id: string;
-  claudeProjectPath: string;
+  projectPath: string;
   lastModifiedAt: Date;
   meta: ProjectMeta;
 };
@@ -21,13 +24,9 @@ export type Session = {
 
 export type SessionMeta = z.infer<typeof sessionMetaSchema>;
 
-export type ErrorJsonl = {
-  type: "x-error";
-  line: string;
-  lineNumber: number;
-};
+export type ErrorJsonl = CodexParseErrorLine;
 
-export type ExtendedConversation = Conversation | ErrorJsonl;
+export type ExtendedConversation = ParsedCodexLine;
 
 export type SessionDetail = Session & {
   conversations: ExtendedConversation[];

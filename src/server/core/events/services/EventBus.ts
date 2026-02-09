@@ -4,19 +4,19 @@ import type { InternalEventDeclaration } from "../types/InternalEventDeclaration
 
 type Listener<T> = (data: T) => void | Promise<void>;
 
-const layerImpl = Effect.gen(function* () {
-  const listenersMap = new Map<
-    keyof InternalEventDeclaration,
-    Set<Listener<unknown>>
-  >();
+const sharedListenersMap = new Map<
+  keyof InternalEventDeclaration,
+  Set<Listener<unknown>>
+>();
 
+const layerImpl = Effect.gen(function* () {
   const getListeners = <EventName extends keyof InternalEventDeclaration>(
     event: EventName,
   ): Set<Listener<InternalEventDeclaration[EventName]>> => {
-    if (!listenersMap.has(event)) {
-      listenersMap.set(event, new Set());
+    if (!sharedListenersMap.has(event)) {
+      sharedListenersMap.set(event, new Set());
     }
-    return listenersMap.get(event) as Set<
+    return sharedListenersMap.get(event) as Set<
       Listener<InternalEventDeclaration[EventName]>
     >;
   };

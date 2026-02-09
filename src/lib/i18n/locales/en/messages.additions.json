@@ -81,7 +81,7 @@
     "translation": "Settings"
   },
   "settings.title": {
-    "translation": "Claude Code Settings"
+    "translation": "Codex Settings"
   },
   "settings.forkSession": {
     "translation": "Fork session (create new session based on current)"
@@ -93,7 +93,7 @@
     "translation": "Disallowed Tools"
   },
   "settings.systemPrompt.usePreset": {
-    "translation": "Use Claude Code standard system prompt"
+    "translation": "Use Codex standard system prompt"
   },
   "settings.systemPrompt.additional": {
     "translation": "Additional System Prompt"
@@ -136,9 +136,6 @@
   },
   "settings.maxThinkingTokens.label": {
     "translation": "Max Thinking Tokens"
-  },
-  "settings.maxBudgetUsd.label": {
-    "translation": "Max Budget (USD)"
   },
   "panel.tab.git": {
     "translation": "Git"

@@ -14,7 +14,7 @@ export const useCreateSessionProcessMutation = (
       input: MessageInput;
       baseSessionId?: string;
     }) => {
-      const { ccOptions, forkSession, ...input } = options.input;
+      const { codexTurnOptions, forkSession, ...input } = options.input;
 
       const getBaseSession = ():
         | undefined
@@ -25,15 +25,13 @@ export const useCreateSessionProcessMutation = (
         return { type: sessionType, sessionId: options.baseSessionId };
       };
 
-      const response = await honoClient.api["claude-code"][
-        "session-processes"
-      ].$post(
+      const response = await honoClient.api.codex["session-processes"].$post(
         {
           json: {
             projectId,
             baseSession: getBaseSession(),
             input,
-            ccOptions,
+            codexTurnOptions,
           },
         },
         {
@@ -74,7 +72,13 @@ export const useContinueSessionProcessMutation = (
       input: MessageInput;
       sessionProcessId: string;
     }) => {
-      const response = await honoClient.api["claude-code"]["session-processes"][
+      const {
+        codexTurnOptions,
+        forkSession: _forkSession,
+        ...input
+      } = options.input;
+
+      const response = await honoClient.api.codex["session-processes"][
         ":sessionProcessId"
       ].continue.$post(
         {
@@ -82,7 +86,8 @@ export const useContinueSessionProcessMutation = (
           json: {
             projectId: projectId,
             baseSessionId: baseSessionId,
-            input: options.input,
+            input,
+            codexTurnOptions,
           },
         },
         {

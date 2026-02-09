@@ -4,15 +4,15 @@ import { NodeContext } from "@effect/platform-node";
 import { createAdaptorServer } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Effect, Layer } from "effect";
-import { AgentSessionLayer } from "./core/agent-session";
-import { AgentSessionController } from "./core/agent-session/presentation/AgentSessionController";
-import { ClaudeCodeController } from "./core/claude-code/presentation/ClaudeCodeController";
-import { ClaudeCodePermissionController } from "./core/claude-code/presentation/ClaudeCodePermissionController";
-import { ClaudeCodeSessionProcessController } from "./core/claude-code/presentation/ClaudeCodeSessionProcessController";
-import { ClaudeCodeLifeCycleService } from "./core/claude-code/services/ClaudeCodeLifeCycleService";
-import { ClaudeCodePermissionService } from "./core/claude-code/services/ClaudeCodePermissionService";
-import { ClaudeCodeService } from "./core/claude-code/services/ClaudeCodeService";
-import { ClaudeCodeSessionProcessService } from "./core/claude-code/services/ClaudeCodeSessionProcessService";
+import { CodexController } from "./core/codex-runtime/presentation/CodexController";
+import { CodexPermissionController } from "./core/codex-runtime/presentation/CodexPermissionController";
+import { CodexSessionProcessController } from "./core/codex-runtime/presentation/CodexSessionProcessController";
+import { CodexApprovalService } from "./core/codex-runtime/services/CodexApprovalService";
+import { CodexAppServerService } from "./core/codex-runtime/services/CodexAppServerService";
+import { CodexLifeCycleService } from "./core/codex-runtime/services/CodexLifeCycleService";
+import { CodexRpcClientService } from "./core/codex-runtime/services/CodexRpcClientService";
+import { CodexService } from "./core/codex-runtime/services/CodexService";
+import { CodexSessionProcessService } from "./core/codex-runtime/services/CodexSessionProcessService";
 import { SSEController } from "./core/events/presentation/SSEController";
 import { FileWatcherService } from "./core/events/services/fileWatcher";
 import { FeatureFlagController } from "./core/feature-flag/presentation/FeatureFlagController";
@@ -24,12 +24,12 @@ import type { CliOptions } from "./core/platform/services/CcvOptionsService";
 import { ProjectRepository } from "./core/project/infrastructure/ProjectRepository";
 import { ProjectController } from "./core/project/presentation/ProjectController";
 import { ProjectMetaService } from "./core/project/services/ProjectMetaService";
-import { RateLimitAutoScheduleService } from "./core/rate-limit/services/RateLimitAutoScheduleService";
 import { SchedulerConfigBaseDir } from "./core/scheduler/config";
 import { SchedulerService } from "./core/scheduler/domain/Scheduler";
 import { SchedulerController } from "./core/scheduler/presentation/SchedulerController";
 import { SearchController } from "./core/search/presentation/SearchController";
 import { SearchService } from "./core/search/services/SearchService";
+import { SessionIndexService } from "./core/session/infrastructure/SessionIndexService";
 import { SessionRepository } from "./core/session/infrastructure/SessionRepository";
 import { VirtualConversationDatabase } from "./core/session/infrastructure/VirtualConversationDatabase";
 import { SessionController } from "./core/session/presentation/SessionController";
@@ -76,9 +76,21 @@ export const startServer = async (options: CliOptions) => {
   const program = Effect.gen(function* () {
     yield* routes(honoApp, options);
     yield* setupTerminalWebSocket(server);
-  })
-    // 依存の浅い順にコンテナに pipe する必要がある
-    .pipe(Effect.provide(MainLayer), Effect.scoped);
+  }).pipe(
+    Effect.provide(MainLayer),
+    Effect.provide(DomainLayer),
+    Effect.provide(DomainBase),
+    Effect.provide(InfraBasics),
+    Effect.provide(InfraLayer),
+    Effect.provide(CodexLifeCycleService.Live),
+    Effect.provide(CodexApprovalService.Live),
+    Effect.provide(CodexSessionProcessService.Live),
+    Effect.provide(CodexRpcClientService.Live),
+    Effect.provide(CodexAppServerService.Live),
+    Effect.provide(SessionIndexService.Live),
+    Effect.provide(PlatformLayer),
+    Effect.scoped,
+  );
 
   await Effect.runPromise(program);
 
@@ -101,10 +113,17 @@ export const startServer = async (options: CliOptions) => {
 
 const PlatformLayer = Layer.mergeAll(platformLayer, NodeContext.layer);
 
-const InfraBasics = Layer.mergeAll(
-  VirtualConversationDatabase.Live,
+const SessionIndexLayer = SessionIndexService.Live;
+
+const InfraMetaLayer = Layer.mergeAll(
   ProjectMetaService.Live,
   SessionMetaService.Live,
+).pipe(Layer.provideMerge(SessionIndexLayer));
+
+const InfraBasics = Layer.mergeAll(
+  VirtualConversationDatabase.Live,
+  SessionIndexLayer,
+  InfraMetaLayer,
 );
 
 const InfraRepos = Layer.mergeAll(
@@ -112,12 +131,14 @@ const InfraRepos = Layer.mergeAll(
   SessionRepository.Live,
 ).pipe(Layer.provideMerge(InfraBasics));
 
-const InfraLayer = AgentSessionLayer.pipe(Layer.provideMerge(InfraRepos));
+const InfraLayer = Layer.mergeAll(InfraBasics, InfraRepos);
 
 const DomainBase = Layer.mergeAll(
-  ClaudeCodePermissionService.Live,
-  ClaudeCodeSessionProcessService.Live,
-  ClaudeCodeService.Live,
+  CodexAppServerService.Live,
+  CodexRpcClientService.Live,
+  CodexSessionProcessService.Live,
+  CodexApprovalService.Live,
+  CodexService.Live,
   GitService.Live,
   SchedulerService.Live,
   SchedulerConfigBaseDir.Live,
@@ -125,29 +146,28 @@ const DomainBase = Layer.mergeAll(
   TasksService.Live,
 );
 
-const DomainLayer = ClaudeCodeLifeCycleService.Live.pipe(
+const DomainLayer = CodexLifeCycleService.Live.pipe(
   Layer.provideMerge(DomainBase),
 );
 
 const AppServices = Layer.mergeAll(
   FileWatcherService.Live,
-  RateLimitAutoScheduleService.Live,
   AuthMiddleware.Live,
   TerminalService.Live,
 );
 
 const ApplicationLayer = InitializeService.Live.pipe(
   Layer.provideMerge(AppServices),
+  Layer.provideMerge(InfraLayer),
 );
 
 const PresentationLayer = Layer.mergeAll(
   ProjectController.Live,
   SessionController.Live,
-  AgentSessionController.Live,
   GitController.Live,
-  ClaudeCodeController.Live,
-  ClaudeCodeSessionProcessController.Live,
-  ClaudeCodePermissionController.Live,
+  CodexController.Live,
+  CodexSessionProcessController.Live,
+  CodexPermissionController.Live,
   FileSystemController.Live,
   SSEController.Live,
   SchedulerController.Live,

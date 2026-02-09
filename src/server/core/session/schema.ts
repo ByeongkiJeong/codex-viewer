@@ -1,23 +1,17 @@
 import { z } from "zod";
-import { parsedUserMessageSchema } from "../claude-code/functions/parseUserMessage";
+import { parsedUserMessageSchema } from "./functions/parseUserMessage";
+
+export const tokenUsageSchema = z.object({
+  inputTokens: z.number(),
+  cachedInputTokens: z.number(),
+  outputTokens: z.number(),
+  reasoningOutputTokens: z.number(),
+  totalTokens: z.number(),
+});
 
 export const sessionMetaSchema = z.object({
   messageCount: z.number(),
   firstUserMessage: parsedUserMessageSchema.nullable(),
-  cost: z.object({
-    totalUsd: z.number(),
-    breakdown: z.object({
-      inputTokensUsd: z.number(),
-      outputTokensUsd: z.number(),
-      cacheCreationUsd: z.number(),
-      cacheReadUsd: z.number(),
-    }),
-    tokenUsage: z.object({
-      inputTokens: z.number(),
-      outputTokens: z.number(),
-      cacheCreationTokens: z.number(),
-      cacheReadTokens: z.number(),
-    }),
-  }),
+  tokenUsage: tokenUsageSchema,
   modelName: z.string().nullable(),
 });

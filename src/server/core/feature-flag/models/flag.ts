@@ -1,22 +1,22 @@
 export type Flag =
   | {
+      name: "app-server";
+      enabled: boolean;
+    }
+  | {
       name: "tool-approval";
       enabled: boolean;
     }
   | {
-      name: "agent-sdk";
+      name: "session-processes";
       enabled: boolean;
     }
   | {
-      name: "sidechain-separation";
+      name: "mcp-server-status";
       enabled: boolean;
     }
   | {
-      name: "uuid-on-sdk-message";
-      enabled: boolean;
-    }
-  | {
-      name: "run-skills-directly";
+      name: "tasks";
       enabled: boolean;
     };
 

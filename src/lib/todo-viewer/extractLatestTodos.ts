@@ -1,66 +1,103 @@
-import type { Conversation } from "../conversation-schema";
+import type { ParsedCodexLine } from "../codex-conversation-schema/parseCodexJsonl";
 
 export type TodoItem = {
   readonly content: string;
   readonly status: "pending" | "in_progress" | "completed";
 };
 
-type ErrorJsonl = {
-  type: "x-error";
-  line: string;
-  lineNumber: number;
+const TODO_TOOL_NAMES = new Set(["TodoWrite", "todo_write", "todoWrite"]);
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null;
 };
 
-type ExtendedConversation = Conversation | ErrorJsonl;
-
-const isTodoWriteInput = (
-  input: Record<string, unknown>,
-): input is { todos: readonly TodoItem[] } => {
-  if (!("todos" in input) || !Array.isArray(input.todos)) {
-    return false;
-  }
-  return input.todos.every(
-    (todo): todo is TodoItem =>
-      typeof todo === "object" &&
-      todo !== null &&
-      "content" in todo &&
-      typeof todo.content === "string" &&
-      "status" in todo &&
-      (todo.status === "pending" ||
-        todo.status === "in_progress" ||
-        todo.status === "completed"),
+const isTodoStatus = (status: unknown): status is TodoItem["status"] => {
+  return (
+    status === "pending" || status === "in_progress" || status === "completed"
   );
 };
 
-/**
- * Extracts the latest TodoWrite result from a session's conversations
- *
- * @param conversations - Array of conversation entries from a session
- * @returns The latest todo items, or null if no TodoWrite has been used
- */
+const parseTodoList = (value: unknown): TodoItem[] | null => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const todos: TodoItem[] = [];
+
+  for (const item of value) {
+    if (!isRecord(item)) {
+      continue;
+    }
+
+    const content = item.content;
+    const status = item.status;
+
+    if (typeof content !== "string" || !isTodoStatus(status)) {
+      continue;
+    }
+
+    todos.push({ content, status });
+  }
+
+  return todos.length > 0 ? todos : null;
+};
+
+const parseToolArguments = (payload: Record<string, unknown>): unknown => {
+  const rawArguments = payload.arguments;
+  if (typeof rawArguments === "string") {
+    try {
+      return JSON.parse(rawArguments);
+    } catch {
+      return null;
+    }
+  }
+
+  if (rawArguments !== undefined) {
+    return rawArguments;
+  }
+
+  return payload.input;
+};
+
 export const extractLatestTodos = (
-  conversations: readonly ExtendedConversation[],
+  conversations: readonly ParsedCodexLine[],
 ): readonly TodoItem[] | null => {
   let latestTodos: readonly TodoItem[] | null = null;
 
   for (const conversation of conversations) {
-    if (conversation.type === "x-error" || conversation.type !== "assistant") {
+    if (conversation.type !== "response_item") {
       continue;
     }
 
-    const content = conversation.message.content;
-    if (!Array.isArray(content)) {
+    const payload = conversation.payload;
+    if (!isRecord(payload)) {
       continue;
     }
 
-    for (const item of content) {
-      if (typeof item === "string" || item.type !== "tool_use") {
-        continue;
-      }
+    const payloadType = payload.type;
+    if (payloadType !== "function_call" && payloadType !== "custom_tool_call") {
+      continue;
+    }
 
-      if (item.name === "TodoWrite" && isTodoWriteInput(item.input)) {
-        latestTodos = item.input.todos;
-      }
+    const toolName =
+      typeof payload.name === "string"
+        ? payload.name
+        : typeof payload.tool_name === "string"
+          ? payload.tool_name
+          : null;
+
+    if (toolName === null || !TODO_TOOL_NAMES.has(toolName)) {
+      continue;
+    }
+
+    const parsedArguments = parseToolArguments(payload);
+    if (!isRecord(parsedArguments)) {
+      continue;
+    }
+
+    const todos = parseTodoList(parsedArguments.todos);
+    if (todos !== null) {
+      latestTodos = todos;
     }
   }
 

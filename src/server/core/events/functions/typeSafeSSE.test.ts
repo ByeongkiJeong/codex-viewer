@@ -1,8 +1,26 @@
 import { Effect } from "effect";
-import type { SSEStreamingApi } from "hono/streaming";
+import { SSEStreamingApi } from "hono/streaming";
 import { describe, expect, it, vi } from "vitest";
 import type { PermissionRequest } from "../../../../types/permissions";
 import { TypeSafeSSE } from "./typeSafeSSE";
+
+const createMockStream = (
+  writtenEvents: Array<{
+    event: string;
+    id: string;
+    data: string;
+  }>,
+): SSEStreamingApi => {
+  const stream = new SSEStreamingApi(
+    new WritableStream(),
+    new ReadableStream(),
+  );
+  stream.writeSSE = vi.fn(async (event) => {
+    writtenEvents.push(event);
+  });
+
+  return stream;
+};
 
 describe("typeSafeSSE", () => {
   describe("writeTypeSafeSSE", () => {
@@ -13,11 +31,7 @@ describe("typeSafeSSE", () => {
         data: string;
       }> = [];
 
-      const mockStream: SSEStreamingApi = {
-        writeSSE: vi.fn(async (event) => {
-          writtenEvents.push(event);
-        }),
-      } as unknown as SSEStreamingApi;
+      const mockStream = createMockStream(writtenEvents);
 
       const program = Effect.gen(function* () {
         const typeSafeSSE = yield* TypeSafeSSE;
@@ -54,11 +68,7 @@ describe("typeSafeSSE", () => {
         data: string;
       }> = [];
 
-      const mockStream: SSEStreamingApi = {
-        writeSSE: vi.fn(async (event) => {
-          writtenEvents.push(event);
-        }),
-      } as unknown as SSEStreamingApi;
+      const mockStream = createMockStream(writtenEvents);
 
       const program = Effect.gen(function* () {
         const typeSafeSSE = yield* TypeSafeSSE;
@@ -92,11 +102,7 @@ describe("typeSafeSSE", () => {
         data: string;
       }> = [];
 
-      const mockStream: SSEStreamingApi = {
-        writeSSE: vi.fn(async (event) => {
-          writtenEvents.push(event);
-        }),
-      } as unknown as SSEStreamingApi;
+      const mockStream = createMockStream(writtenEvents);
 
       const program = Effect.gen(function* () {
         const typeSafeSSE = yield* TypeSafeSSE;
@@ -135,14 +141,11 @@ describe("typeSafeSSE", () => {
         data: string;
       }> = [];
 
-      const mockStream: SSEStreamingApi = {
-        writeSSE: vi.fn(async (event) => {
-          writtenEvents.push(event);
-        }),
-      } as unknown as SSEStreamingApi;
+      const mockStream = createMockStream(writtenEvents);
 
       const mockPermissionRequest: PermissionRequest = {
         id: "permission-1",
+        kind: "commandExecution",
         sessionId: "session-1",
         turnId: "task-1",
         toolName: "read",
@@ -185,11 +188,7 @@ describe("typeSafeSSE", () => {
         data: string;
       }> = [];
 
-      const mockStream: SSEStreamingApi = {
-        writeSSE: vi.fn(async (event) => {
-          writtenEvents.push(event);
-        }),
-      } as unknown as SSEStreamingApi;
+      const mockStream = createMockStream(writtenEvents);
 
       const program = Effect.gen(function* () {
         const typeSafeSSE = yield* TypeSafeSSE;
@@ -220,11 +219,7 @@ describe("typeSafeSSE", () => {
         data: string;
       }> = [];
 
-      const mockStream: SSEStreamingApi = {
-        writeSSE: vi.fn(async (event) => {
-          writtenEvents.push(event);
-        }),
-      } as unknown as SSEStreamingApi;
+      const mockStream = createMockStream(writtenEvents);
 
       const program = Effect.gen(function* () {
         const typeSafeSSE = yield* TypeSafeSSE;

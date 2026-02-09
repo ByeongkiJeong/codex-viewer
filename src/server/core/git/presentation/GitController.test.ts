@@ -12,7 +12,7 @@ describe("GitController.commitFiles", () => {
       projects: [
         {
           id: "test-project",
-          claudeProjectPath: "/path/to/project",
+          projectPath: "/path/to/project",
           lastModifiedAt: new Date(),
           meta: {
             projectName: "Test Project",
@@ -66,7 +66,7 @@ describe("GitController.pushCommits", () => {
       projects: [
         {
           id: "test-project",
-          claudeProjectPath: "/path/to/project",
+          projectPath: "/path/to/project",
           lastModifiedAt: new Date(),
           meta: {
             projectName: "Test Project",

@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-claude_dir="$(git rev-parse --show-toplevel)/mock-global-claude-dir"
+codex_home="$(git rev-parse --show-toplevel)/mock-global-codex-dir"
 
-echo "Check directory structure in $claude_dir:"
-ls -l $claude_dir
+echo "Check directory structure in $codex_home:"
+ls -l $codex_home
 
-node ./dist/main.js --port 4000 --claude-dir $claude_dir
+node ./dist/main.js --port 4000 --codex-home "$codex_home"

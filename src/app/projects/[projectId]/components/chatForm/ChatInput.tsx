@@ -28,14 +28,14 @@ import {
 import { Textarea } from "../../../../../components/ui/textarea";
 import { useCreateSchedulerJob } from "../../../../../hooks/useScheduler";
 import type {
-  CCOptionsSchema,
+  CodexTurnOptionsSchema,
   DocumentBlockParam,
   ImageBlockParam,
-} from "../../../../../server/core/claude-code/schema";
+} from "../../../../../server/core/codex-runtime/schema";
 import { useConfig } from "../../../../hooks/useConfig";
-import { ClaudeCodeSettingsPopover } from "./ClaudeCodeSettingsForm";
+import { CodexSettingsPopover } from "./CodexSettingsForm";
 import type { CommandCompletionRef } from "./CommandCompletion";
-import { getDefaultCCOptions } from "./ccOptionsFormSchema";
+import { getDefaultCodexTurnOptions } from "./codexOptionsFormSchema";
 import { isInCompletionContext } from "./completionUtils";
 import type { FileCompletionRef } from "./FileCompletion";
 import { processFile } from "./fileUtils";
@@ -45,7 +45,7 @@ export interface MessageInput {
   text: string;
   images?: ImageBlockParam[];
   documents?: DocumentBlockParam[];
-  ccOptions?: CCOptionsSchema;
+  codexTurnOptions?: CodexTurnOptionsSchema;
   forkSession?: boolean;
 }
 
@@ -62,7 +62,7 @@ export interface ChatInputProps {
   buttonSize?: "sm" | "default" | "lg";
   enableScheduledSend?: boolean;
   baseSessionId?: string | null;
-  enableCCOptions?: boolean;
+  enableCodexOptions?: boolean;
 }
 
 export const ChatInput: FC<ChatInputProps> = ({
@@ -78,7 +78,7 @@ export const ChatInput: FC<ChatInputProps> = ({
   buttonSize = "lg",
   enableScheduledSend = false,
   baseSessionId = null,
-  enableCCOptions = false,
+  enableCodexOptions = false,
 }) => {
   // Parse minHeight prop to get pixel value (default to 48px for 1.5 lines)
   // Supports both "200px" and Tailwind format like "min-h-[200px]"
@@ -119,9 +119,9 @@ export const ChatInput: FC<ChatInputProps> = ({
   });
   // Initialize with default values so settingSources is always sent correctly
   // even when the user doesn't open the settings popover
-  const [ccOptions, setCCOptions] = useState<CCOptionsSchema | undefined>(
-    getDefaultCCOptions,
-  );
+  const [codexTurnOptions, setCodexTurnOptions] = useState<
+    CodexTurnOptionsSchema | undefined
+  >(getDefaultCodexTurnOptions);
   const [forkSession, setForkSession] = useState(true);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -160,6 +160,7 @@ export const ChatInput: FC<ChatInputProps> = ({
 
     const images: ImageBlockParam[] = [];
     const documents: DocumentBlockParam[] = [];
+    const mergedTextParts: string[] = [message];
 
     for (const { file } of attachedFiles) {
       const result = await processFile(file);
@@ -169,20 +170,26 @@ export const ChatInput: FC<ChatInputProps> = ({
       }
 
       if (result.type === "text") {
-        documents.push({
-          type: "document",
-          source: {
-            type: "text",
-            media_type: "text/plain",
-            data: result.content,
-          },
-        });
+        mergedTextParts.push(
+          `\\n\\n[Attached text: ${file.name}]\\n${result.content}`,
+        );
       } else if (result.type === "image") {
         images.push(result.block);
       } else if (result.type === "document") {
+        if (result.block.source.media_type === "application/pdf") {
+          toast.info(
+            i18n._({
+              id: "chat.attach.pdf_not_supported",
+              message: "PDF attachments are not supported in Codex mode yet.",
+            }),
+          );
+          continue;
+        }
         documents.push(result.block);
       }
     }
+
+    const mergedText = mergedTextParts.join("").trim();
 
     if (enableScheduledSend && sendMode === "scheduled") {
       // Create a scheduler job for scheduled send
@@ -207,7 +214,7 @@ export const ChatInput: FC<ChatInputProps> = ({
             reservedExecutionTime: localDate.toISOString(),
           },
           message: {
-            content: message,
+            content: mergedText,
             projectId,
             baseSession: baseSessionId
               ? { type: "resume", sessionId: baseSessionId }
@@ -245,10 +252,10 @@ export const ChatInput: FC<ChatInputProps> = ({
     } else {
       // Immediate send
       await onSubmit({
-        text: message,
+        text: mergedText,
         images: images.length > 0 ? images : undefined,
         documents: documents.length > 0 ? documents : undefined,
-        ccOptions: ccOptions,
+        codexTurnOptions,
         forkSession: baseSessionId ? forkSession : undefined,
       });
 
@@ -532,10 +539,10 @@ export const ChatInput: FC<ChatInputProps> = ({
                     {message.length}
                   </span>
                 )}
-                {enableCCOptions && (
-                  <ClaudeCodeSettingsPopover
-                    value={ccOptions}
-                    onChange={setCCOptions}
+                {enableCodexOptions && (
+                  <CodexSettingsPopover
+                    value={codexTurnOptions}
+                    onChange={setCodexTurnOptions}
                     disabled={isPending || disabled}
                     showForkOption={Boolean(baseSessionId)}
                     forkSession={forkSession}

@@ -11,7 +11,11 @@ export const ContinueChat: FC<{
   projectId: string;
   sessionId: string;
   sessionProcessId: string;
-  sessionProcessStatus?: "running" | "paused";
+  sessionProcessStatus?:
+    | "running"
+    | "paused"
+    | "awaiting_approval"
+    | "completed";
 }> = ({ projectId, sessionId, sessionProcessId, sessionProcessStatus }) => {
   const { i18n } = useLingui();
   const continueSessionProcess = useContinueSessionProcessMutation(
@@ -47,7 +51,9 @@ export const ContinueChat: FC<{
     });
   };
 
-  const isRunning = sessionProcessStatus === "running";
+  const isRunning =
+    sessionProcessStatus === "running" ||
+    sessionProcessStatus === "awaiting_approval";
 
   return (
     <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 pb-3">

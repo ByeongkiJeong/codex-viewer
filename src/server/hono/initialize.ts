@@ -4,7 +4,6 @@ import { FileWatcherService } from "../core/events/services/fileWatcher";
 import type { InternalEventDeclaration } from "../core/events/types/InternalEventDeclaration";
 import { ProjectRepository } from "../core/project/infrastructure/ProjectRepository";
 import { ProjectMetaService } from "../core/project/services/ProjectMetaService";
-import { RateLimitAutoScheduleService } from "../core/rate-limit/services/RateLimitAutoScheduleService";
 import { SessionRepository } from "../core/session/infrastructure/SessionRepository";
 import { VirtualConversationDatabase } from "../core/session/infrastructure/VirtualConversationDatabase";
 import { SessionMetaService } from "../core/session/services/SessionMetaService";
@@ -28,7 +27,6 @@ export class InitializeService extends Context.Tag("InitializeService")<
       const projectMetaService = yield* ProjectMetaService;
       const sessionMetaService = yield* SessionMetaService;
       const virtualConversationDatabase = yield* VirtualConversationDatabase;
-      const rateLimitAutoScheduleService = yield* RateLimitAutoScheduleService;
 
       // 状態管理用の Ref
       const listenersRef = yield* Ref.make<{
@@ -44,9 +42,6 @@ export class InitializeService extends Context.Tag("InitializeService")<
         return Effect.gen(function* () {
           // ファイルウォッチャーを開始
           yield* fileWatcher.startWatching();
-
-          // Rate limit auto-schedule service を開始
-          yield* rateLimitAutoScheduleService.start();
 
           // ハートビートを定期的に送信
           const daemon = Effect.repeat(
@@ -78,8 +73,8 @@ export class InitializeService extends Context.Tag("InitializeService")<
             event: InternalEventDeclaration["sessionProcessChanged"],
           ) => {
             if (
-              (event.changed.type === "completed" ||
-                event.changed.type === "paused") &&
+              (event.changed.status === "completed" ||
+                event.changed.status === "paused") &&
               event.changed.sessionId !== undefined
             ) {
               Effect.runFork(
@@ -137,7 +132,6 @@ export class InitializeService extends Context.Tag("InitializeService")<
           }
 
           yield* Ref.set(listenersRef, {});
-          yield* rateLimitAutoScheduleService.stop();
           yield* fileWatcher.stop();
         });
 

@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import type { Conversation } from "../../../../lib/conversation-schema";
+import type { ParsedCodexLine } from "../../../../lib/codex-conversation-schema/parseCodexJsonl";
 import type { ErrorJsonl } from "../../types";
 import { VirtualConversationDatabase } from "./VirtualConversationDatabase";
 
@@ -11,9 +11,9 @@ describe("VirtualConversationDatabase", () => {
 
         const projectPath = "/projects/test-project";
         const projectId = Buffer.from(projectPath).toString("base64url");
-        const conversations1: (Conversation | ErrorJsonl)[] = [];
-        const conversations2: (Conversation | ErrorJsonl)[] = [];
-        const conversations3: (Conversation | ErrorJsonl)[] = [];
+        const conversations1: (ParsedCodexLine | ErrorJsonl)[] = [];
+        const conversations2: (ParsedCodexLine | ErrorJsonl)[] = [];
+        const conversations3: (ParsedCodexLine | ErrorJsonl)[] = [];
 
         yield* db.createVirtualConversation(
           projectId,
@@ -68,7 +68,7 @@ describe("VirtualConversationDatabase", () => {
       const program = Effect.gen(function* () {
         const db = yield* VirtualConversationDatabase;
 
-        const conversations: (Conversation | ErrorJsonl)[] = [];
+        const conversations: (ParsedCodexLine | ErrorJsonl)[] = [];
 
         yield* db.createVirtualConversation(
           "project-1",
@@ -110,7 +110,7 @@ describe("VirtualConversationDatabase", () => {
       const program = Effect.gen(function* () {
         const db = yield* VirtualConversationDatabase;
 
-        const conversations: (Conversation | ErrorJsonl)[] = [];
+        const conversations: (ParsedCodexLine | ErrorJsonl)[] = [];
 
         yield* db.createVirtualConversation(
           "project-1",
@@ -134,8 +134,8 @@ describe("VirtualConversationDatabase", () => {
       const program = Effect.gen(function* () {
         const db = yield* VirtualConversationDatabase;
 
-        const conversations1: (Conversation | ErrorJsonl)[] = [];
-        const conversations2: (Conversation | ErrorJsonl)[] = [];
+        const conversations1: (ParsedCodexLine | ErrorJsonl)[] = [];
+        const conversations2: (ParsedCodexLine | ErrorJsonl)[] = [];
 
         yield* db.createVirtualConversation(
           "project-1",
@@ -165,7 +165,7 @@ describe("VirtualConversationDatabase", () => {
       const program = Effect.gen(function* () {
         const db = yield* VirtualConversationDatabase;
 
-        const conversations: (Conversation | ErrorJsonl)[] = [];
+        const conversations: (ParsedCodexLine | ErrorJsonl)[] = [];
 
         yield* db.createVirtualConversation(
           "project-1",
@@ -202,8 +202,8 @@ describe("VirtualConversationDatabase", () => {
   describe("state is isolated between multiple instances", () => {
     it("different layers have different states", async () => {
       const projectId = "test-project-id";
-      const conversations1: (Conversation | ErrorJsonl)[] = [];
-      const conversations2: (Conversation | ErrorJsonl)[] = [];
+      const conversations1: (ParsedCodexLine | ErrorJsonl)[] = [];
+      const conversations2: (ParsedCodexLine | ErrorJsonl)[] = [];
 
       const program1 = Effect.gen(function* () {
         const db = yield* VirtualConversationDatabase;

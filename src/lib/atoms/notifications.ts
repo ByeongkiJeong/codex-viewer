@@ -21,7 +21,7 @@ const defaultSettings: NotificationSettings = {
  * Atom for notification settings with localStorage persistence
  */
 export const notificationSettingsAtom = atomWithStorage<NotificationSettings>(
-  "claude-code-viewer-notification-settings",
+  "codex-viewer-notification-settings",
   defaultSettings,
 );
 

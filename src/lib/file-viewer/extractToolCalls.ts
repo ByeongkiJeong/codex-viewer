@@ -1,4 +1,4 @@
-import type { Conversation } from "../conversation-schema";
+import type { ParsedCodexLine } from "../codex-conversation-schema/parseCodexJsonl";
 
 export type ToolCallInfo = {
   readonly id: string;
@@ -7,13 +7,9 @@ export type ToolCallInfo = {
   readonly inputSummary: string;
 };
 
-type ErrorJsonl = {
-  type: "x-error";
-  line: string;
-  lineNumber: number;
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null;
 };
-
-type ExtendedConversation = Conversation | ErrorJsonl;
 
 const summarizeInput = (input: unknown): string => {
   if (input === null || input === undefined) {
@@ -21,83 +17,89 @@ const summarizeInput = (input: unknown): string => {
   }
 
   if (typeof input === "string") {
-    return input.slice(0, 80);
+    return input.slice(0, 120);
   }
 
-  if (typeof input !== "object") {
-    return String(input).slice(0, 80);
+  if (!isRecord(input)) {
+    return String(input).slice(0, 120);
   }
 
-  // For objects, try to extract meaningful summary
-  const obj = input as Record<string, unknown>;
-
-  // Common patterns for tool inputs
-  if ("file_path" in obj && typeof obj.file_path === "string") {
-    return obj.file_path;
+  const filePath = input.file_path;
+  if (typeof filePath === "string") {
+    return filePath;
   }
 
-  if ("command" in obj && typeof obj.command === "string") {
-    return obj.command.slice(0, 80);
+  const command = input.command;
+  if (typeof command === "string") {
+    return command.slice(0, 120);
   }
 
-  if ("query" in obj && typeof obj.query === "string") {
-    return obj.query.slice(0, 80);
-  }
-
-  if ("pattern" in obj && typeof obj.pattern === "string") {
-    return obj.pattern.slice(0, 80);
-  }
-
-  if ("url" in obj && typeof obj.url === "string") {
-    return obj.url;
-  }
-
-  if ("content" in obj && typeof obj.content === "string") {
-    return obj.content.slice(0, 80);
-  }
-
-  // Fallback: stringify first few keys
-  const keys = Object.keys(obj).slice(0, 3);
-  if (keys.length === 0) {
-    return "{}";
-  }
-
+  const keys = Object.keys(input).slice(0, 4);
   return keys.join(", ");
 };
 
-/**
- * Extracts all tool calls from a session's conversations
- *
- * @param conversations - Array of conversation entries from a session
- * @returns Array of ToolCallInfo in chronological order
- */
+const parseArguments = (payload: Record<string, unknown>): unknown => {
+  const rawArguments = payload.arguments;
+  if (typeof rawArguments === "string") {
+    try {
+      return JSON.parse(rawArguments);
+    } catch {
+      return rawArguments;
+    }
+  }
+
+  if (rawArguments !== undefined) {
+    return rawArguments;
+  }
+
+  return payload.input;
+};
+
+const isToolCallPayload = (
+  payload: unknown,
+): payload is Record<string, unknown> => {
+  if (!isRecord(payload)) {
+    return false;
+  }
+
+  const type = payload.type;
+  return type === "function_call" || type === "custom_tool_call";
+};
+
 export const extractToolCalls = (
-  conversations: readonly ExtendedConversation[],
+  conversations: readonly ParsedCodexLine[],
 ): readonly ToolCallInfo[] => {
   const toolCalls: ToolCallInfo[] = [];
 
-  for (const conversation of conversations) {
-    if (conversation.type === "x-error" || conversation.type !== "assistant") {
+  for (const [index, conversation] of conversations.entries()) {
+    if (conversation.type !== "response_item") {
       continue;
     }
 
-    const content = conversation.message.content;
-    if (!Array.isArray(content)) {
+    if (!isToolCallPayload(conversation.payload)) {
       continue;
     }
 
-    for (const item of content) {
-      if (typeof item === "string" || item.type !== "tool_use") {
-        continue;
-      }
+    const callId =
+      typeof conversation.payload.call_id === "string"
+        ? conversation.payload.call_id
+        : `${conversation.timestamp}-${index}`;
 
-      toolCalls.push({
-        id: item.id,
-        name: item.name,
-        timestamp: conversation.timestamp,
-        inputSummary: summarizeInput(item.input),
-      });
-    }
+    const name =
+      typeof conversation.payload.name === "string"
+        ? conversation.payload.name
+        : typeof conversation.payload.tool_name === "string"
+          ? conversation.payload.tool_name
+          : "tool";
+
+    const parsedInput = parseArguments(conversation.payload);
+
+    toolCalls.push({
+      id: callId,
+      name,
+      timestamp: conversation.timestamp,
+      inputSummary: summarizeInput(parsedInput),
+    });
   }
 
   return toolCalls;

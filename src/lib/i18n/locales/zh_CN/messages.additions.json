@@ -84,7 +84,7 @@
     "translation": "设置"
   },
   "settings.title": {
-    "translation": "Claude Code 设置"
+    "translation": "Codex 设置"
   },
   "settings.forkSession": {
     "translation": "分叉会话（基于当前会话创建新会话）"
@@ -96,7 +96,7 @@
     "translation": "禁用工具"
   },
   "settings.systemPrompt.usePreset": {
-    "translation": "使用 Claude Code 标准系统提示"
+    "translation": "使用 Codex 标准系统提示"
   },
   "settings.systemPrompt.additional": {
     "translation": "附加系统提示"
@@ -139,9 +139,6 @@
   },
   "settings.maxThinkingTokens.label": {
     "translation": "最大思考令牌数"
-  },
-  "settings.maxBudgetUsd.label": {
-    "translation": "最大预算 (USD)"
   },
   "panel.tab.git": {
     "translation": "Git"

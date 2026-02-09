@@ -29,7 +29,7 @@ export const SessionPageContent: FC<{
 
   const firstPage = projectData.pages[0];
   const project = firstPage?.project;
-  const projectPath = project?.meta.projectPath ?? project?.claudeProjectPath;
+  const projectPath = project?.meta.projectPath ?? project?.projectPath;
   const projectName = project?.meta.projectName ?? "Untitled Project";
 
   // Calculate main content height based on bottom panel

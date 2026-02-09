@@ -4,7 +4,7 @@ import { ProjectRepository } from "../../server/core/project/infrastructure/Proj
 export const testProjectRepositoryLayer = (options?: {
   projects?: Array<{
     id: string;
-    claudeProjectPath: string;
+    projectPath: string;
     lastModifiedAt: Date;
     meta: {
       projectName: string | null;

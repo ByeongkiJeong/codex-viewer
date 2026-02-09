@@ -1,8 +1,12 @@
 import { type FSWatcher, watch } from "node:fs";
-import { Path } from "@effect/platform";
+import { FileSystem, Path } from "@effect/platform";
 import { Context, Effect, Layer, Ref } from "effect";
+import {
+  extractCwd,
+  parseCodexJsonl,
+} from "../../../../lib/codex-conversation-schema/parseCodexJsonl";
 import { ApplicationContext } from "../../platform/services/ApplicationContext";
-import { encodeProjectIdFromSessionFilePath } from "../../project/functions/id";
+import { encodeProjectId } from "../../project/functions/id";
 import { parseSessionFilePath } from "../functions/parseSessionFilePath";
 import { EventBus } from "./EventBus";
 
@@ -18,15 +22,13 @@ export class FileWatcherService extends Context.Tag("FileWatcherService")<
   static Live = Layer.effect(
     this,
     Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const eventBus = yield* EventBus;
       const context = yield* ApplicationContext;
 
       const isWatchingRef = yield* Ref.make(false);
       const watcherRef = yield* Ref.make<FSWatcher | null>(null);
-      const projectWatchersRef = yield* Ref.make<Map<string, FSWatcher>>(
-        new Map(),
-      );
       const debounceTimersRef = yield* Ref.make<
         Map<string, ReturnType<typeof setTimeout>>
       >(new Map());
@@ -34,86 +36,87 @@ export class FileWatcherService extends Context.Tag("FileWatcherService")<
       const startWatching = (): Effect.Effect<void> =>
         Effect.gen(function* () {
           const isWatching = yield* Ref.get(isWatchingRef);
-          if (isWatching) return;
+          if (isWatching) {
+            return;
+          }
 
-          const claudeCodePaths = yield* context.claudeCodePaths;
-
+          const codexPaths = yield* context.codexPaths;
           yield* Ref.set(isWatchingRef, true);
 
           yield* Effect.tryPromise({
             try: async () => {
               console.log(
                 "Starting file watcher on:",
-                claudeCodePaths.claudeProjectsDirPath,
+                codexPaths.codexSessionsDirPath,
               );
 
               const watcher = watch(
-                claudeCodePaths.claudeProjectsDirPath,
+                codexPaths.codexSessionsDirPath,
                 { persistent: false, recursive: true },
                 (_eventType, filename) => {
-                  if (!filename) return;
+                  if (!filename) {
+                    return;
+                  }
 
                   const fileMatch = parseSessionFilePath(filename);
-                  if (fileMatch === null) return;
+                  if (fileMatch === null) {
+                    return;
+                  }
 
-                  // Build full path to get encoded projectId
-                  const fullPath = path.join(
-                    claudeCodePaths.claudeProjectsDirPath,
-                    filename,
-                  );
-                  const encodedProjectId =
-                    encodeProjectIdFromSessionFilePath(fullPath);
-
-                  // Determine debounce key based on file type
-                  const debounceKey =
-                    fileMatch.type === "agent"
-                      ? `${encodedProjectId}/agent-${fileMatch.agentSessionId}`
-                      : `${encodedProjectId}/${fileMatch.sessionId}`;
+                  const debounceKey = fileMatch.threadId;
 
                   Effect.runPromise(
                     Effect.gen(function* () {
                       const timers = yield* Ref.get(debounceTimersRef);
-                      const existingTimer = timers.get(debounceKey);
-                      if (existingTimer) {
-                        clearTimeout(existingTimer);
+                      const existing = timers.get(debounceKey);
+                      if (existing !== undefined) {
+                        clearTimeout(existing);
                       }
 
-                      const newTimer = setTimeout(() => {
-                        if (fileMatch.type === "agent") {
-                          // Agent session file changed
-                          Effect.runFork(
-                            eventBus.emit("agentSessionChanged", {
-                              projectId: encodedProjectId,
-                              agentSessionId: fileMatch.agentSessionId,
-                            }),
-                          );
-                        } else {
-                          // Regular session file changed
-                          Effect.runFork(
-                            eventBus.emit("sessionChanged", {
-                              projectId: encodedProjectId,
-                              sessionId: fileMatch.sessionId,
-                            }),
-                          );
+                      const fullPath = path.join(
+                        codexPaths.codexSessionsDirPath,
+                        filename,
+                      );
 
-                          Effect.runFork(
-                            eventBus.emit("sessionListChanged", {
-                              projectId: encodedProjectId,
-                            }),
-                          );
-                        }
-
-                        Effect.runPromise(
+                      const timer = setTimeout(() => {
+                        Effect.runFork(
                           Effect.gen(function* () {
-                            const currentTimers =
-                              yield* Ref.get(debounceTimersRef);
-                            currentTimers.delete(debounceKey);
-                            yield* Ref.set(debounceTimersRef, currentTimers);
+                            const content = yield* fs
+                              .readFileString(fullPath)
+                              .pipe(Effect.catchAll(() => Effect.succeed("")));
+                            if (content.length === 0) {
+                              return;
+                            }
+
+                            const parsed = parseCodexJsonl(content);
+                            const cwd = extractCwd(parsed);
+                            if (cwd === null) {
+                              return;
+                            }
+
+                            const projectId = encodeProjectId(cwd);
+
+                            yield* eventBus.emit("sessionChanged", {
+                              projectId,
+                              sessionId: fileMatch.threadId,
+                            });
+
+                            yield* eventBus.emit("sessionListChanged", {
+                              projectId,
+                            });
                           }),
                         );
-                      }, 100); // Reduced from 300ms to improve message latency
 
-                      timers.set(debounceKey, newTimer);
+                        Effect.runFork(
+                          Ref.update(debounceTimersRef, (current) => {
+                            const next = new Map(current);
+                            next.delete(debounceKey);
+                            return next;
+                          }),
+                        );
+                      }, 120);
+
+                      timers.set(debounceKey, timer);
                       yield* Ref.set(debounceTimersRef, timers);
                     }),
                   );
@@ -129,10 +132,7 @@ export class FileWatcherService extends Context.Tag("FileWatcherService")<
                 `Failed to start file watching: ${String(error)}`,
               );
             },
-          }).pipe(
-            // エラーが発生しても続行する
-            Effect.catchAll(() => Effect.void),
-          );
+          }).pipe(Effect.catchAll(() => Effect.void));
         });
 
       const stop = (): Effect.Effect<void> =>
@@ -144,16 +144,11 @@ export class FileWatcherService extends Context.Tag("FileWatcherService")<
           yield* Ref.set(debounceTimersRef, new Map());
 
           const watcher = yield* Ref.get(watcherRef);
-          if (watcher) {
-            yield* Effect.sync(() => watcher.close());
+          if (watcher !== null) {
+            watcher.close();
             yield* Ref.set(watcherRef, null);
           }
 
-          const projectWatchers = yield* Ref.get(projectWatchersRef);
-          for (const [, projectWatcher] of projectWatchers) {
-            yield* Effect.sync(() => projectWatcher.close());
-          }
-          yield* Ref.set(projectWatchersRef, new Map());
           yield* Ref.set(isWatchingRef, false);
         });
 

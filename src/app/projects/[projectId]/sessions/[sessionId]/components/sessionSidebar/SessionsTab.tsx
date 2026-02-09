@@ -47,11 +47,20 @@ export const SessionsTab: FC<{
     const aStatus = aProcess?.status;
     const bStatus = bProcess?.status;
 
-    // Define priority: running = 0, paused = 1, others = 2
-    const getPriority = (status: "paused" | "running" | undefined) => {
+    // Define priority: running = 0, awaiting_approval = 1, paused = 2, completed = 3, others = 4
+    const getPriority = (
+      status:
+        | "paused"
+        | "running"
+        | "awaiting_approval"
+        | "completed"
+        | undefined,
+    ) => {
       if (status === "running") return 0;
-      if (status === "paused") return 1;
-      return 2;
+      if (status === "awaiting_approval") return 1;
+      if (status === "paused") return 2;
+      if (status === "completed") return 3;
+      return 4;
     };
 
     const aPriority = getPriority(aStatus);
@@ -115,6 +124,8 @@ export const SessionsTab: FC<{
           );
           const isRunning = sessionProcess?.status === "running";
           const isPaused = sessionProcess?.status === "paused";
+          const isAwaitingApproval =
+            sessionProcess?.status === "awaiting_approval";
 
           return (
             <Link
@@ -133,17 +144,20 @@ export const SessionsTab: FC<{
                   <h3 className="text-sm font-medium line-clamp-2 leading-tight text-sidebar-foreground flex-1">
                     {title}
                   </h3>
-                  {(isRunning || isPaused) && (
+                  {(isRunning || isPaused || isAwaitingApproval) && (
                     <Badge
                       variant={isRunning ? "default" : "secondary"}
                       className={cn(
                         "text-xs shrink-0",
                         isRunning && "bg-green-500 text-white",
+                        isAwaitingApproval && "bg-yellow-500 text-white",
                         isPaused && "bg-yellow-500 text-white",
                       )}
                     >
                       {isRunning ? (
                         <Trans id="session.status.running" />
+                      ) : isAwaitingApproval ? (
+                        <Trans id="session.status.awaiting_approval" />
                       ) : (
                         <Trans id="session.status.paused" />
                       )}

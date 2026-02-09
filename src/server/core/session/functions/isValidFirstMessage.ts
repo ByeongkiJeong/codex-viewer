@@ -1,7 +1,7 @@
 import {
   type ParsedUserMessage,
   parseUserMessage,
-} from "../../claude-code/functions/parseUserMessage";
+} from "../../session/functions/parseUserMessage";
 import type { ExtendedConversation } from "../../types";
 import { extractFirstUserText } from "./extractFirstUserText";
 
@@ -27,14 +27,6 @@ export const isLocalCommandCaveat = (text: string) => {
 export const extractFirstUserMessage = (
   conversation: ExtendedConversation,
 ): ParsedUserMessage | undefined => {
-  if (conversation.type !== "user") {
-    return undefined;
-  }
-
-  if (conversation.isSidechain === true) {
-    return undefined;
-  }
-
   const firstUserText = extractFirstUserText(conversation);
 
   if (firstUserText === null) {

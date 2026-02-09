@@ -1,6 +1,6 @@
 # Developer Documentation
 
-This document provides technical details for developers contributing to Claude Code Viewer.
+This document provides technical details for developers contributing to Codex Viewer.
 
 ## Architecture Overview
 
@@ -23,10 +23,10 @@ This document provides technical details for developers contributing to Claude C
 
 ### Data Source and Storage
 
-- **Single Source of Truth (SSoT)**: Claude Code's standard session logs (`~/.claude/projects/`)
+- **Single Source of Truth (SSoT)**: Codex's standard session logs (`~/.codex/projects/`)
   - No separate database; reads directly from JSONL files
   - Strict validation via Zod schemas ensures conversation data integrity
-- **Caching Mechanism**: For performance optimization, metadata is cached in `~/.claude-code-viewer/`
+- **Caching Mechanism**: For performance optimization, metadata is cached in `~/.codex-code-viewer/`
   - Frequently accessed data like session lists and project information
   - Cache is automatically invalidated via SSE events
 
@@ -42,7 +42,7 @@ This document provides technical details for developers contributing to Claude C
 
 ### Session Process Management
 
-Claude Code Viewer provides advanced control over Claude Code session processes:
+Codex Viewer provides advanced control over Codex session processes:
 
 - After starting a session, the process remains in the background unless explicitly aborted
 - Paused sessions can continue without changing the session-id (no resume needed)
@@ -204,7 +204,7 @@ src/
 │   └── conversation-schema/  # Zod schemas for conversation logs
 ├── server/              # Backend implementation
 │   ├── core/           # Core domain logic (Effect-TS)
-│   │   ├── claude-code/  # Claude Code integration
+│   │   ├── codex-runtime/  # Codex integration
 │   │   ├── events/       # SSE event management
 │   │   ├── session/      # Session management
 │   │   └── ...
@@ -220,8 +220,8 @@ src/
 
 1. **Learning Effect-TS**: The backend is built with Effect-TS. Refer to the [official documentation](https://effect.website/)
 2. **Debugging SSE**: Check the Network tab in browser developer tools to inspect SSE connections
-3. **Log Inspection**: Directly reference JSONL files under `~/.claude/projects/` to understand data structures
-4. **Mock Data**: Mock data for E2E tests in `mock-global-claude-dir/` is useful for development reference
+3. **Log Inspection**: Directly reference JSONL files under `~/.codex/projects/` to understand data structures
+4. **Mock Data**: Mock data for E2E tests in `mock-global-codex-dir/` is useful for development reference
 
 ## Contributing
 

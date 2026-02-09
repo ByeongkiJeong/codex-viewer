@@ -2,7 +2,6 @@ import { SystemError } from "@effect/platform/Error";
 import { Effect, Layer } from "effect";
 import { testFileSystemLayer } from "../../../../testing/layers/testFileSystemLayer";
 import { testPlatformLayer } from "../../../../testing/layers/testPlatformLayer";
-import { AgentSessionRepository } from "../../agent-session/infrastructure/AgentSessionRepository";
 import { EventBus, type IEventBus } from "../../events/services/EventBus";
 import type { InternalEventDeclaration } from "../../events/types/InternalEventDeclaration";
 import { SessionRepository } from "../infrastructure/SessionRepository";
@@ -53,36 +52,41 @@ describe("SessionController", () => {
       });
 
       const sessionRepositoryLayer = Layer.succeed(SessionRepository, {
-        getSession: () => Effect.succeed({ session: null }),
+        getSession: (_projectId, requestSessionId) =>
+          Effect.succeed({
+            session: {
+              id: requestSessionId,
+              jsonlFilePath: sessionPath,
+              lastModifiedAt: new Date(),
+              meta: {
+                messageCount: 0,
+                firstUserMessage: null,
+                tokenUsage: {
+                  inputTokens: 0,
+                  cachedInputTokens: 0,
+                  outputTokens: 0,
+                  reasoningOutputTokens: 0,
+                  totalTokens: 0,
+                },
+                modelName: null,
+              },
+              conversations: [],
+            },
+          }),
         getSessions: () => Effect.succeed({ sessions: [] }),
       });
-
-      const agentSessionRepositoryLayer = Layer.succeed(
-        AgentSessionRepository,
-        {
-          getAgentSessionByAgentId: () => Effect.succeed(null),
-        },
-      );
 
       const sessionMetaServiceLayer = Layer.succeed(SessionMetaService, {
         getSessionMeta: () =>
           Effect.succeed({
             messageCount: 0,
             firstUserMessage: null,
-            cost: {
-              totalUsd: 0,
-              breakdown: {
-                inputTokensUsd: 0,
-                outputTokensUsd: 0,
-                cacheCreationUsd: 0,
-                cacheReadUsd: 0,
-              },
-              tokenUsage: {
-                inputTokens: 0,
-                outputTokens: 0,
-                cacheCreationTokens: 0,
-                cacheReadTokens: 0,
-              },
+            tokenUsage: {
+              inputTokens: 0,
+              cachedInputTokens: 0,
+              outputTokens: 0,
+              reasoningOutputTokens: 0,
+              totalTokens: 0,
             },
             modelName: null,
           }),
@@ -121,7 +125,6 @@ describe("SessionController", () => {
           sessionMetaServiceLayer,
           virtualConversationDatabaseLayer,
           eventBusLayer,
-          agentSessionRepositoryLayer,
         ),
       };
     };

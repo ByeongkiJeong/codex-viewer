@@ -2,8 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Effect } from "effect";
 import { Hono } from "hono";
 import { z } from "zod";
-import { AgentSessionController } from "../../core/agent-session/presentation/AgentSessionController";
-import { ClaudeCodeController } from "../../core/claude-code/presentation/ClaudeCodeController";
+import { CodexController } from "../../core/codex-runtime/presentation/CodexController";
 import { FileSystemController } from "../../core/file-system/presentation/FileSystemController";
 import { GitController } from "../../core/git/presentation/GitController";
 import { CommitRequestSchema } from "../../core/git/schema";
@@ -16,8 +15,7 @@ import { getHonoRuntime } from "../runtime";
 const projectRoutes = Effect.gen(function* () {
   const projectController = yield* ProjectController;
   const sessionController = yield* SessionController;
-  const agentSessionController = yield* AgentSessionController;
-  const claudeCodeController = yield* ClaudeCodeController;
+  const codexController = yield* CodexController;
   const fileSystemController = yield* FileSystemController;
   const gitController = yield* GitController;
 
@@ -121,26 +119,13 @@ const projectRoutes = Effect.gen(function* () {
       })
 
       /**
-       * agent sessions
+       * codex routes
        */
-      .get("/:projectId/agent-sessions/:agentId", async (c) => {
-        const projectId = c.req.param("projectId");
-        const agentId = c.req.param("agentId");
+      .get("/:projectId/codex-commands", async (c) => {
         const response = await effectToResponse(
           c,
-          agentSessionController.getAgentSession({ projectId, agentId }),
-        );
-        return response;
-      })
-
-      /**
-       * claude code routes
-       */
-      .get("/:projectId/claude-commands", async (c) => {
-        const response = await effectToResponse(
-          c,
-          claudeCodeController
-            .getClaudeCommands({
+          codexController
+            .getCodexCommands({
               ...c.req.param(),
             })
             .pipe(Effect.provide(runtime)),
@@ -150,11 +135,7 @@ const projectRoutes = Effect.gen(function* () {
       .get("/:projectId/mcp/list", async (c) => {
         const response = await effectToResponse(
           c,
-          claudeCodeController
-            .getMcpListRoute({
-              ...c.req.param(),
-            })
-            .pipe(Effect.provide(runtime)),
+          codexController.getMcpListRoute().pipe(Effect.provide(runtime)),
         );
         return response;
       })

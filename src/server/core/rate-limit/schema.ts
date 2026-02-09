@@ -1,11 +1,11 @@
 import { z } from "zod";
 
 /**
- * Schema for detecting rate limit messages from Claude Code session JSONL.
+ * Schema for detecting rate limit messages from Codex session JSONL.
  *
  * This is a focused validation schema that only checks the required fields
  * for rate limit detection. It is intentionally less strict than the full
- * AssistantEntrySchema to avoid breaking when Claude Code adds new fields.
+ * AssistantEntrySchema to avoid breaking when Codex adds new fields.
  */
 export const RateLimitEntrySchema = z.object({
   type: z.literal("assistant"),

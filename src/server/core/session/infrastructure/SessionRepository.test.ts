@@ -1,107 +1,129 @@
-import { SystemError } from "@effect/platform/Error";
-import { Effect, Layer, Option } from "effect";
-import type { Conversation } from "../../../../lib/conversation-schema";
-import {
-  createFileInfo,
-  testFileSystemLayer,
-} from "../../../../testing/layers/testFileSystemLayer";
+import { Effect, Layer } from "effect";
+import { describe, expect, it } from "vitest";
+import { testFileSystemLayer } from "../../../../testing/layers/testFileSystemLayer";
 import { testPlatformLayer } from "../../../../testing/layers/testPlatformLayer";
-import { decodeProjectId } from "../../project/functions/id";
-import type { ErrorJsonl, SessionDetail, SessionMeta } from "../../types";
-import { SessionRepository } from "../infrastructure/SessionRepository";
-import { VirtualConversationDatabase } from "../infrastructure/VirtualConversationDatabase";
+import { decodeProjectId, encodeProjectId } from "../../project/functions/id";
+import type { SessionMeta } from "../../types";
 import { SessionMetaService } from "../services/SessionMetaService";
 import { createMockSessionMeta } from "../testing/createMockSessionMeta";
+import {
+  type SessionIndexRecord,
+  SessionIndexService,
+} from "./SessionIndexService";
+import { SessionRepository } from "./SessionRepository";
 
-const testSessionMetaServiceLayer = (meta: SessionMeta) => {
-  return Layer.mock(SessionMetaService, {
-    getSessionMeta: () => Effect.succeed(meta),
-    invalidateSession: () => Effect.void,
-  });
-};
-
-const testPredictSessionsDatabaseLayer = (
-  sessions: Map<string, SessionDetail>,
-) => {
-  return Layer.mock(VirtualConversationDatabase, {
-    getProjectVirtualConversations: (projectId: string) =>
-      Effect.succeed(
-        Array.from(sessions.values())
-          .filter((s) => {
-            const projectPath = decodeProjectId(projectId);
-            return s.jsonlFilePath.startsWith(projectPath);
-          })
-          .map((s) => ({
-            projectId,
-            sessionId: s.id,
-            conversations: s.conversations,
-          })),
-      ),
-    getSessionVirtualConversation: (sessionId: string) => {
-      const session = sessions.get(sessionId);
-      return Effect.succeed(
-        session
-          ? {
-              projectId: "",
-              sessionId: session.id,
-              conversations: session.conversations,
-            }
-          : null,
-      );
+const makeMeta = (): SessionMeta =>
+  createMockSessionMeta({
+    messageCount: 2,
+    firstUserMessage: { kind: "text", content: "hello" },
+    tokenUsage: {
+      inputTokens: 10,
+      cachedInputTokens: 0,
+      outputTokens: 5,
+      reasoningOutputTokens: 0,
+      totalTokens: 15,
     },
+    modelName: "gpt-5-codex",
   });
-};
+
+const makeRecord = (
+  overrides: Partial<SessionIndexRecord> & {
+    threadId: string;
+    cwd: string;
+    jsonlFilePath: string;
+    lastModifiedAt: Date;
+  },
+): SessionIndexRecord => ({
+  threadId: overrides.threadId,
+  cwd: overrides.cwd,
+  jsonlFilePath: overrides.jsonlFilePath,
+  lastModifiedAt: overrides.lastModifiedAt,
+  firstUserText: overrides.firstUserText ?? "hello",
+  modelName: overrides.modelName ?? "gpt-5-codex",
+  tokenUsage: overrides.tokenUsage ?? {
+    inputTokens: 10,
+    cachedInputTokens: 0,
+    outputTokens: 5,
+    reasoningOutputTokens: 0,
+    totalTokens: 15,
+  },
+  lineCount: overrides.lineCount ?? 2,
+  parsedLines: overrides.parsedLines ?? [],
+});
+
+const makeSessionIndexLayer = (records: SessionIndexRecord[]) =>
+  Layer.succeed(
+    SessionIndexService,
+    SessionIndexService.of({
+      getSessionIndices: () => Effect.succeed(records),
+      getSessionByThreadId: (threadId: string) =>
+        Effect.succeed(
+          records.find((record) => record.threadId === threadId) ?? null,
+        ),
+    }),
+  );
+
+const makeSessionMetaLayer = (meta: SessionMeta) =>
+  Layer.succeed(
+    SessionMetaService,
+    SessionMetaService.of({
+      getSessionMeta: () => Effect.succeed(meta),
+      invalidateSession: () => Effect.void,
+    }),
+  );
 
 describe("SessionRepository", () => {
   describe("getSession", () => {
-    it("returns session details when session file exists", async () => {
-      const projectId = Buffer.from("/test/project").toString("base64url");
-      const sessionId = "test-session";
-      const sessionPath = `/test/project/${sessionId}.jsonl`;
-      const mockDate = new Date("2024-01-01T00:00:00.000Z");
-      const mockMeta: SessionMeta = createMockSessionMeta({
-        messageCount: 3,
-        firstUserMessage: null,
-      });
+    it("returns session details for matching thread id and project", async () => {
+      const projectPath = "/test/project";
+      const projectId = encodeProjectId(projectPath);
+      const sessionId = "thread-1";
+      const jsonlFilePath = "/mock/sessions/thread-1/rollout-1.jsonl";
+      const lastModifiedAt = new Date("2026-01-01T00:00:00.000Z");
 
-      const mockContent = `{"type":"user","message":{"role":"user","content":"Hello"}}\n{"type":"assistant","message":{"role":"assistant","content":"Hi"}}\n{"type":"user","message":{"role":"user","content":"Test"}}`;
+      const records = [
+        makeRecord({
+          threadId: sessionId,
+          cwd: projectPath,
+          jsonlFilePath,
+          lastModifiedAt,
+        }),
+      ];
 
-      const SessionMetaServiceMock = testSessionMetaServiceLayer(mockMeta);
-      const PredictSessionsDatabaseMock = testPredictSessionsDatabaseLayer(
-        new Map(),
-      );
+      const jsonlContent = [
+        JSON.stringify({
+          timestamp: "2026-01-01T00:00:00.000Z",
+          type: "session_meta",
+          payload: {
+            id: sessionId,
+            timestamp: "2026-01-01T00:00:00.000Z",
+            cwd: projectPath,
+          },
+        }),
+        JSON.stringify({
+          timestamp: "2026-01-01T00:00:01.000Z",
+          type: "response_item",
+          payload: {
+            type: "message",
+            role: "user",
+            content: [{ type: "input_text", text: "hello" }],
+          },
+        }),
+      ].join("\n");
 
       const program = Effect.gen(function* () {
-        const repo = yield* SessionRepository;
-        return yield* repo.getSession(projectId, sessionId);
+        const repository = yield* SessionRepository;
+        return yield* repository.getSession(projectId, sessionId);
       });
 
       const result = await Effect.runPromise(
         program.pipe(
           Effect.provide(SessionRepository.Live),
-          Effect.provide(SessionMetaServiceMock),
-          Effect.provide(PredictSessionsDatabaseMock),
+          Effect.provide(makeSessionMetaLayer(makeMeta())),
+          Effect.provide(makeSessionIndexLayer(records)),
           Effect.provide(
             testFileSystemLayer({
-              exists: (path: string) => Effect.succeed(path === sessionPath),
-              readFileString: (path: string) =>
-                path === sessionPath
-                  ? Effect.succeed(mockContent)
-                  : Effect.fail(
-                      new SystemError({
-                        method: "readFileString",
-                        reason: "NotFound",
-                        module: "FileSystem",
-                        cause: undefined,
-                      }),
-                    ),
-              stat: () =>
-                Effect.succeed(
-                  createFileInfo({
-                    type: "File",
-                    mtime: Option.some(mockDate),
-                  }),
-                ),
+              readFileString: () => Effect.succeed(jsonlContent),
             }),
           ),
           Effect.provide(testPlatformLayer()),
@@ -109,151 +131,37 @@ describe("SessionRepository", () => {
       );
 
       expect(result.session).not.toBeNull();
-      if (result.session) {
+      if (result.session !== null) {
         expect(result.session.id).toBe(sessionId);
-        expect(result.session.jsonlFilePath).toBe(sessionPath);
-        expect(result.session.meta).toEqual(mockMeta);
-        expect(result.session.conversations).toHaveLength(3);
-        expect(result.session.lastModifiedAt).toEqual(mockDate);
+        expect(result.session.jsonlFilePath).toBe(jsonlFilePath);
+        expect(result.session.lastModifiedAt).toEqual(lastModifiedAt);
+        expect(result.session.conversations).toHaveLength(2);
       }
     });
 
-    it("returns predicted session when session file does not exist but predicted session exists", async () => {
-      const projectId = Buffer.from("/test/project").toString("base64url");
-      const sessionId = "predict-session";
-      const mockDate = new Date("2024-01-01T00:00:00.000Z");
-
-      const mockConversations: (Conversation | ErrorJsonl)[] = [
-        {
-          type: "user",
-          uuid: "550e8400-e29b-41d4-a716-446655440000",
-          timestamp: mockDate.toISOString(),
-          message: { role: "user", content: "Hello" },
-          isSidechain: false,
-          userType: "external",
-          cwd: "/test",
-          sessionId,
-          version: "1.0.0",
-          parentUuid: null,
-        },
+    it("returns null when thread id is not in the target project", async () => {
+      const projectId = encodeProjectId("/test/project-a");
+      const sessionId = "thread-1";
+      const records = [
+        makeRecord({
+          threadId: sessionId,
+          cwd: "/test/project-b",
+          jsonlFilePath: "/mock/sessions/thread-1/rollout-1.jsonl",
+          lastModifiedAt: new Date(),
+        }),
       ];
 
-      const FileSystemMock = testFileSystemLayer({
-        exists: () => Effect.succeed(false),
-      });
-
-      const SessionMetaServiceMock = testSessionMetaServiceLayer(
-        createMockSessionMeta({
-          messageCount: 0,
-          firstUserMessage: null,
-        }),
-      );
-      const PredictSessionsDatabaseMock = Layer.succeed(
-        VirtualConversationDatabase,
-        {
-          getProjectVirtualConversations: () => Effect.succeed([]),
-          getSessionVirtualConversation: (sid: string) =>
-            Effect.succeed(
-              sid === sessionId
-                ? {
-                    projectId,
-                    sessionId,
-                    conversations: mockConversations,
-                  }
-                : null,
-            ),
-          createVirtualConversation: () => Effect.void,
-          deleteVirtualConversations: () => Effect.void,
-        },
-      );
-
       const program = Effect.gen(function* () {
-        const repo = yield* SessionRepository;
-        return yield* repo.getSession(projectId, sessionId);
+        const repository = yield* SessionRepository;
+        return yield* repository.getSession(projectId, sessionId);
       });
 
       const result = await Effect.runPromise(
         program.pipe(
           Effect.provide(SessionRepository.Live),
-          Effect.provide(SessionMetaServiceMock),
-          Effect.provide(PredictSessionsDatabaseMock),
-          Effect.provide(FileSystemMock),
-          Effect.provide(testPlatformLayer()),
-        ),
-      );
-
-      expect(result.session).not.toBeNull();
-      if (result.session) {
-        expect(result.session.id).toBe(sessionId);
-        expect(result.session.conversations).toHaveLength(1);
-      }
-    });
-
-    it("returns null when session does not exist", async () => {
-      const projectId = Buffer.from("/test/project").toString("base64url");
-      const sessionId = "nonexistent-session";
-
-      const FileSystemMock = testFileSystemLayer({
-        exists: () => Effect.succeed(false),
-      });
-
-      const SessionMetaServiceMock = testSessionMetaServiceLayer(
-        createMockSessionMeta({
-          messageCount: 0,
-          firstUserMessage: null,
-        }),
-      );
-      const PredictSessionsDatabaseMock = testPredictSessionsDatabaseLayer(
-        new Map(),
-      );
-
-      const program = Effect.gen(function* () {
-        const repo = yield* SessionRepository;
-        return yield* repo.getSession(projectId, sessionId);
-      });
-
-      const result = await Effect.runPromise(
-        program.pipe(
-          Effect.provide(SessionRepository.Live),
-          Effect.provide(SessionMetaServiceMock),
-          Effect.provide(PredictSessionsDatabaseMock),
-          Effect.provide(FileSystemMock),
-          Effect.provide(testPlatformLayer()),
-        ),
-      );
-
-      expect(result.session).toBeNull();
-    });
-
-    it("returns null when resuming session without predict session (reproduces bug)", async () => {
-      const projectId = Buffer.from("/test/project").toString("base64url");
-      const sessionId = "resume-session-id";
-
-      const FileSystemMock = testFileSystemLayer({
-        exists: () => Effect.succeed(false),
-      });
-
-      const SessionMetaServiceMock = testSessionMetaServiceLayer(
-        createMockSessionMeta({
-          messageCount: 0,
-          firstUserMessage: null,
-        }),
-      );
-      const PredictSessionsDatabaseMock = testPredictSessionsDatabaseLayer(
-        new Map(),
-      );
-
-      const program = Effect.gen(function* () {
-        const repo = yield* SessionRepository;
-        return yield* repo.getSession(projectId, sessionId);
-      });
-
-      const result = await Effect.runPromise(
-        program.pipe(
-          Effect.provide(SessionRepository.Live),
-          Effect.provide(SessionMetaServiceMock),
-          Effect.provide(PredictSessionsDatabaseMock),
-          Effect.provide(FileSystemMock),
+          Effect.provide(makeSessionMetaLayer(makeMeta())),
+          Effect.provide(makeSessionIndexLayer(records)),
+          Effect.provide(testFileSystemLayer()),
           Effect.provide(testPlatformLayer()),
         ),
       );
@@ -263,337 +171,95 @@ describe("SessionRepository", () => {
   });
 
   describe("getSessions", () => {
-    it("returns list of sessions within project", async () => {
+    it("returns sessions for a project sorted by most recent update", async () => {
       const projectPath = "/test/project";
-      const projectId = Buffer.from(projectPath).toString("base64url");
-      const date1 = new Date("2024-01-01T00:00:00.000Z");
-      const date2 = new Date("2024-01-02T00:00:00.000Z");
+      const projectId = encodeProjectId(projectPath);
 
-      const mockMeta: SessionMeta = createMockSessionMeta({
-        messageCount: 1,
-        firstUserMessage: null,
+      const older = makeRecord({
+        threadId: "thread-1",
+        cwd: projectPath,
+        jsonlFilePath: "/mock/sessions/thread-1/rollout-1.jsonl",
+        lastModifiedAt: new Date("2026-01-01T00:00:00.000Z"),
       });
-
-      const FileSystemMock = testFileSystemLayer({
-        exists: (path: string) => Effect.succeed(path === projectPath),
-        readDirectory: (path: string) =>
-          path === projectPath
-            ? Effect.succeed(["session1.jsonl", "session2.jsonl"])
-            : Effect.succeed([]),
-        stat: (path: string) => {
-          if (path.includes("session1.jsonl")) {
-            return Effect.succeed(
-              createFileInfo({ type: "File", mtime: Option.some(date2) }),
-            );
-          }
-          if (path.includes("session2.jsonl")) {
-            return Effect.succeed(
-              createFileInfo({ type: "File", mtime: Option.some(date1) }),
-            );
-          }
-          return Effect.succeed(
-            createFileInfo({ type: "File", mtime: Option.some(new Date()) }),
-          );
-        },
+      const newer = makeRecord({
+        threadId: "thread-2",
+        cwd: projectPath,
+        jsonlFilePath: "/mock/sessions/thread-2/rollout-1.jsonl",
+        lastModifiedAt: new Date("2026-01-02T00:00:00.000Z"),
       });
-
-      const SessionMetaServiceMock = testSessionMetaServiceLayer(mockMeta);
-      const PredictSessionsDatabaseMock = testPredictSessionsDatabaseLayer(
-        new Map(),
-      );
+      const otherProject = makeRecord({
+        threadId: "thread-3",
+        cwd: "/other/project",
+        jsonlFilePath: "/mock/sessions/thread-3/rollout-1.jsonl",
+        lastModifiedAt: new Date("2026-01-03T00:00:00.000Z"),
+      });
 
       const program = Effect.gen(function* () {
-        const repo = yield* SessionRepository;
-        return yield* repo.getSessions(projectId);
+        const repository = yield* SessionRepository;
+        return yield* repository.getSessions(projectId);
       });
 
       const result = await Effect.runPromise(
         program.pipe(
           Effect.provide(SessionRepository.Live),
-          Effect.provide(SessionMetaServiceMock),
-          Effect.provide(PredictSessionsDatabaseMock),
-          Effect.provide(FileSystemMock),
+          Effect.provide(makeSessionMetaLayer(makeMeta())),
+          Effect.provide(makeSessionIndexLayer([older, newer, otherProject])),
+          Effect.provide(testFileSystemLayer()),
           Effect.provide(testPlatformLayer()),
         ),
       );
 
-      expect(result.sessions).toHaveLength(2);
-      expect(result.sessions.at(0)?.lastModifiedAt).toEqual(date2);
-      expect(result.sessions.at(1)?.lastModifiedAt).toEqual(date1);
+      expect(result.sessions.map((session) => session.id)).toEqual([
+        "thread-2",
+        "thread-1",
+      ]);
     });
 
-    it("can limit number of results with maxCount option", async () => {
+    it("supports cursor and maxCount paging", async () => {
       const projectPath = "/test/project";
-      const projectId = Buffer.from(projectPath).toString("base64url");
-      const mockDate = new Date("2024-01-01T00:00:00.000Z");
-
-      const mockMeta: SessionMeta = createMockSessionMeta({
-        messageCount: 1,
-        firstUserMessage: null,
-      });
-
-      const FileSystemMock = testFileSystemLayer({
-        exists: (path: string) => Effect.succeed(path === projectPath),
-        readDirectory: (path: string) =>
-          path === projectPath
-            ? Effect.succeed([
-                "session1.jsonl",
-                "session2.jsonl",
-                "session3.jsonl",
-              ])
-            : Effect.succeed([]),
-        stat: () =>
-          Effect.succeed(createFileInfo({ mtime: Option.some(mockDate) })),
-      });
-
-      const SessionMetaServiceMock = testSessionMetaServiceLayer(mockMeta);
-      const PredictSessionsDatabaseMock = testPredictSessionsDatabaseLayer(
-        new Map(),
-      );
+      const projectId = encodeProjectId(projectPath);
+      const records = [
+        makeRecord({
+          threadId: "thread-3",
+          cwd: projectPath,
+          jsonlFilePath: "/mock/sessions/thread-3/rollout-1.jsonl",
+          lastModifiedAt: new Date("2026-01-03T00:00:00.000Z"),
+        }),
+        makeRecord({
+          threadId: "thread-2",
+          cwd: projectPath,
+          jsonlFilePath: "/mock/sessions/thread-2/rollout-1.jsonl",
+          lastModifiedAt: new Date("2026-01-02T00:00:00.000Z"),
+        }),
+        makeRecord({
+          threadId: "thread-1",
+          cwd: projectPath,
+          jsonlFilePath: "/mock/sessions/thread-1/rollout-1.jsonl",
+          lastModifiedAt: new Date("2026-01-01T00:00:00.000Z"),
+        }),
+      ];
 
       const program = Effect.gen(function* () {
-        const repo = yield* SessionRepository;
-        return yield* repo.getSessions(projectId, { maxCount: 2 });
-      });
-
-      const result = await Effect.runPromise(
-        program.pipe(
-          Effect.provide(SessionRepository.Live),
-          Effect.provide(SessionMetaServiceMock),
-          Effect.provide(PredictSessionsDatabaseMock),
-          Effect.provide(FileSystemMock),
-          Effect.provide(testPlatformLayer()),
-        ),
-      );
-
-      expect(result.sessions).toHaveLength(2);
-    });
-
-    it("can paginate with cursor option", async () => {
-      const projectPath = "/test/project";
-      const projectId = Buffer.from(projectPath).toString("base64url");
-      const mockDate = new Date("2024-01-01T00:00:00.000Z");
-
-      const mockMeta: SessionMeta = createMockSessionMeta({
-        messageCount: 1,
-        firstUserMessage: null,
-      });
-
-      const FileSystemMock = testFileSystemLayer({
-        exists: (path: string) => Effect.succeed(path === projectPath),
-        readDirectory: (path: string) =>
-          path === projectPath
-            ? Effect.succeed([
-                "session1.jsonl",
-                "session2.jsonl",
-                "session3.jsonl",
-              ])
-            : Effect.succeed([]),
-        stat: () =>
-          Effect.succeed(createFileInfo({ mtime: Option.some(mockDate) })),
-      });
-
-      const SessionMetaServiceMock = testSessionMetaServiceLayer(mockMeta);
-      const PredictSessionsDatabaseMock = testPredictSessionsDatabaseLayer(
-        new Map(),
-      );
-
-      const program = Effect.gen(function* () {
-        const repo = yield* SessionRepository;
-        return yield* repo.getSessions(projectId, {
-          cursor: "session1",
+        const repository = yield* SessionRepository;
+        return yield* repository.getSessions(projectId, {
+          cursor: "thread-2",
+          maxCount: 1,
         });
       });
 
       const result = await Effect.runPromise(
         program.pipe(
           Effect.provide(SessionRepository.Live),
-          Effect.provide(SessionMetaServiceMock),
-          Effect.provide(PredictSessionsDatabaseMock),
-          Effect.provide(FileSystemMock),
+          Effect.provide(makeSessionMetaLayer(makeMeta())),
+          Effect.provide(makeSessionIndexLayer(records)),
+          Effect.provide(testFileSystemLayer()),
           Effect.provide(testPlatformLayer()),
         ),
       );
 
-      expect(result.sessions.length).toBeGreaterThan(0);
-      expect(result.sessions.every((s) => s.id !== "session1")).toBe(true);
-    });
-
-    it("returns empty array when project does not exist", async () => {
-      const projectId = Buffer.from("/nonexistent").toString("base64url");
-
-      const FileSystemMock = testFileSystemLayer({
-        exists: () => Effect.succeed(false),
-        readDirectory: () =>
-          Effect.fail(
-            new SystemError({
-              method: "readDirectory",
-              reason: "NotFound",
-              module: "FileSystem",
-              cause: undefined,
-            }),
-          ),
-      });
-
-      const SessionMetaServiceMock = testSessionMetaServiceLayer(
-        createMockSessionMeta({
-          messageCount: 0,
-          firstUserMessage: null,
-        }),
-      );
-      const PredictSessionsDatabaseMock = testPredictSessionsDatabaseLayer(
-        new Map(),
-      );
-
-      const program = Effect.gen(function* () {
-        const repo = yield* SessionRepository;
-        return yield* repo.getSessions(projectId);
-      });
-
-      const result = await Effect.runPromise(
-        program.pipe(
-          Effect.provide(SessionRepository.Live),
-          Effect.provide(SessionMetaServiceMock),
-          Effect.provide(PredictSessionsDatabaseMock),
-          Effect.provide(FileSystemMock),
-          Effect.provide(testPlatformLayer()),
-        ),
-      );
-
-      expect(result.sessions).toEqual([]);
-    });
-
-    it("excludes agent-*.jsonl files from session list", async () => {
-      const projectPath = "/test/project";
-      const projectId = Buffer.from(projectPath).toString("base64url");
-      const mockDate = new Date("2024-01-01T00:00:00.000Z");
-
-      const mockMeta: SessionMeta = createMockSessionMeta({
-        messageCount: 1,
-        firstUserMessage: null,
-      });
-
-      const FileSystemMock = testFileSystemLayer({
-        exists: (path: string) => Effect.succeed(path === projectPath),
-        readDirectory: (path: string) =>
-          path === projectPath
-            ? Effect.succeed([
-                "session1.jsonl",
-                "agent-abc123.jsonl", // This should be excluded
-                "session2.jsonl",
-                "agent-def456.jsonl", // This should be excluded
-              ])
-            : Effect.succeed([]),
-        stat: () =>
-          Effect.succeed(createFileInfo({ mtime: Option.some(mockDate) })),
-      });
-
-      const SessionMetaServiceMock = testSessionMetaServiceLayer(mockMeta);
-      const PredictSessionsDatabaseMock = testPredictSessionsDatabaseLayer(
-        new Map(),
-      );
-
-      const program = Effect.gen(function* () {
-        const repo = yield* SessionRepository;
-        return yield* repo.getSessions(projectId);
-      });
-
-      const result = await Effect.runPromise(
-        program.pipe(
-          Effect.provide(SessionRepository.Live),
-          Effect.provide(SessionMetaServiceMock),
-          Effect.provide(PredictSessionsDatabaseMock),
-          Effect.provide(FileSystemMock),
-          Effect.provide(testPlatformLayer()),
-        ),
-      );
-
-      // Should only contain session1 and session2, not agent files
-      expect(result.sessions).toHaveLength(2);
-      expect(result.sessions.some((s) => s.id === "session1")).toBe(true);
-      expect(result.sessions.some((s) => s.id === "session2")).toBe(true);
-      expect(result.sessions.some((s) => s.id.startsWith("agent-"))).toBe(
-        false,
-      );
-    });
-
-    it("returns including predicted sessions", async () => {
-      const projectPath = "/test/project";
-      const projectId = Buffer.from(projectPath).toString("base64url");
-      const mockDate = new Date("2024-01-01T00:00:00.000Z");
-      const virtualDate = new Date("2024-01-03T00:00:00.000Z");
-
-      const mockMeta: SessionMeta = createMockSessionMeta({
-        messageCount: 1,
-        firstUserMessage: null,
-      });
-
-      const mockConversations: (Conversation | ErrorJsonl)[] = [
-        {
-          type: "user",
-          uuid: "550e8400-e29b-41d4-a716-446655440000",
-          timestamp: virtualDate.toISOString(),
-          message: { role: "user", content: "Hello" },
-          isSidechain: false,
-          userType: "external",
-          cwd: "/test",
-          sessionId: "predict-session",
-          version: "1.0.0",
-          parentUuid: null,
-        },
-      ];
-
-      const FileSystemMock = testFileSystemLayer({
-        exists: (path: string) => Effect.succeed(path === projectPath),
-        readDirectory: (path: string) =>
-          path === projectPath
-            ? Effect.succeed(["session1.jsonl"])
-            : Effect.succeed([]),
-        stat: () =>
-          Effect.succeed(createFileInfo({ mtime: Option.some(mockDate) })),
-      });
-
-      const SessionMetaServiceMock = testSessionMetaServiceLayer(mockMeta);
-      const PredictSessionsDatabaseMock = Layer.succeed(
-        VirtualConversationDatabase,
-        {
-          getProjectVirtualConversations: (pid: string) =>
-            Effect.succeed(
-              pid === projectId
-                ? [
-                    {
-                      projectId,
-                      sessionId: "predict-session",
-                      conversations: mockConversations,
-                    },
-                  ]
-                : [],
-            ),
-          getSessionVirtualConversation: () => Effect.succeed(null),
-          createVirtualConversation: () => Effect.void,
-          deleteVirtualConversations: () => Effect.void,
-        },
-      );
-
-      const program = Effect.gen(function* () {
-        const repo = yield* SessionRepository;
-        return yield* repo.getSessions(projectId);
-      });
-
-      const result = await Effect.runPromise(
-        program.pipe(
-          Effect.provide(SessionRepository.Live),
-          Effect.provide(SessionMetaServiceMock),
-          Effect.provide(PredictSessionsDatabaseMock),
-          Effect.provide(FileSystemMock),
-          Effect.provide(testPlatformLayer()),
-        ),
-      );
-
-      expect(result.sessions.length).toBeGreaterThanOrEqual(2);
-      expect(result.sessions.some((s) => s.id === "predict-session")).toBe(
-        true,
-      );
+      expect(result.sessions).toHaveLength(1);
+      expect(result.sessions[0]?.id).toBe("thread-1");
+      expect(decodeProjectId(projectId)).toBe(projectPath);
     });
   });
 });

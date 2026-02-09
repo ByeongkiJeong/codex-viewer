@@ -22,7 +22,7 @@ const authRoutes = Effect.gen(function* () {
           return c.json(
             {
               error:
-                "Authentication not configured. Set CLAUDE_CODE_VIEWER_AUTH_PASSWORD environment variable.",
+                "Authentication not configured. Set CCV_PASSWORD environment variable.",
             },
             500,
           );

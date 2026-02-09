@@ -1,34 +1,25 @@
 import { describe, expect, it } from "vitest";
+import type { ParsedCodexLine } from "../../../../lib/codex-conversation-schema/parseCodexJsonl";
 import { extractFirstUserMessage } from "./isValidFirstMessage";
 
-const createUserConversation = (content: string, uuid: string) => {
-  const userType: "external" = "external";
-  const role: "user" = "user";
-  const entryType: "user" = "user";
-
+const createUserMessageLine = (text: string): ParsedCodexLine => {
   return {
-    type: entryType,
-    isSidechain: false,
-    userType,
-    cwd: "/repo",
-    sessionId: "session-1",
-    version: "2.1.34",
-    uuid,
     timestamp: "2026-02-07T00:00:00.000Z",
-    parentUuid: null,
-    message: {
-      role,
-      content,
+    type: "response_item",
+    payload: {
+      type: "message",
+      role: "user",
+      content: [{ type: "input_text", text }],
     },
   };
 };
 
-const firstUserFromConversations = (
-  conversations: ReturnType<typeof createUserConversation>[],
-) => {
+const firstUserFromConversations = (conversations: ParsedCodexLine[]) => {
   for (const conversation of conversations) {
     const firstUser = extractFirstUserMessage(conversation);
-    if (firstUser !== undefined) return firstUser;
+    if (firstUser !== undefined) {
+      return firstUser;
+    }
   }
   return null;
 };
@@ -42,9 +33,9 @@ describe("extractFirstUserMessage", () => {
       "<local-command-stdout>output that should not be first</local-command-stdout>";
 
     const result = firstUserFromConversations([
-      createUserConversation(caveat, "11111111-1111-1111-1111-111111111111"),
-      createUserConversation(userText, "22222222-2222-2222-2222-222222222222"),
-      createUserConversation(stdout, "33333333-3333-3333-3333-333333333333"),
+      createUserMessageLine(caveat),
+      createUserMessageLine(userText),
+      createUserMessageLine(stdout),
     ]);
 
     expect(result?.kind).toBe("text");
@@ -60,8 +51,8 @@ describe("extractFirstUserMessage", () => {
       "<local-command-stdout>hello <tag>world</tag></local-command-stdout>";
 
     const result = firstUserFromConversations([
-      createUserConversation(caveat, "44444444-4444-4444-4444-444444444444"),
-      createUserConversation(stdout, "55555555-5555-5555-5555-555555555555"),
+      createUserMessageLine(caveat),
+      createUserMessageLine(stdout),
     ]);
 
     expect(result?.kind).toBe("local-command");

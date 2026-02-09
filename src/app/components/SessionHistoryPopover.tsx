@@ -2,10 +2,10 @@ import { Trans } from "@lingui/react";
 import { Link } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import {
-  CoinsIcon,
   HistoryIcon,
   MessageSquareIcon,
   PlusIcon,
+  SigmaIcon,
 } from "lucide-react";
 import type { FC } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -63,10 +63,19 @@ export const SessionHistoryPopover: FC<SessionHistoryPopoverProps> = ({
     const aStatus = aProcess?.status;
     const bStatus = bProcess?.status;
 
-    const getPriority = (status: "paused" | "running" | undefined) => {
+    const getPriority = (
+      status:
+        | "paused"
+        | "running"
+        | "awaiting_approval"
+        | "completed"
+        | undefined,
+    ) => {
       if (status === "running") return 0;
-      if (status === "paused") return 1;
-      return 2;
+      if (status === "awaiting_approval") return 1;
+      if (status === "paused") return 2;
+      if (status === "completed") return 3;
+      return 4;
     };
 
     const aPriority = getPriority(aStatus);
@@ -174,6 +183,8 @@ export const SessionHistoryPopover: FC<SessionHistoryPopoverProps> = ({
               );
               const isRunning = sessionProcess?.status === "running";
               const isPaused = sessionProcess?.status === "paused";
+              const isAwaitingApproval =
+                sessionProcess?.status === "awaiting_approval";
 
               return (
                 <Link
@@ -192,19 +203,23 @@ export const SessionHistoryPopover: FC<SessionHistoryPopoverProps> = ({
                     <h4 className="text-sm font-medium line-clamp-1 flex-1">
                       {title}
                     </h4>
-                    {(isRunning || isPaused) && (
+                    {(isRunning || isPaused || isAwaitingApproval) && (
                       <Badge
                         variant="secondary"
                         className={cn(
                           "text-[10px] px-1.5 h-4 shrink-0",
                           isRunning &&
                             "bg-green-500/10 text-green-600 dark:text-green-400",
+                          isAwaitingApproval &&
+                            "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
                           isPaused &&
                             "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
                         )}
                       >
                         {isRunning ? (
                           <Trans id="session.status.running" />
+                        ) : isAwaitingApproval ? (
+                          <Trans id="session.status.awaiting_approval" />
                         ) : (
                           <Trans id="session.status.paused" />
                         )}
@@ -217,8 +232,8 @@ export const SessionHistoryPopover: FC<SessionHistoryPopoverProps> = ({
                       <span>{session.meta.messageCount}</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <CoinsIcon className="w-2.5 h-2.5" />
-                      <span>${session.meta.cost.totalUsd.toFixed(2)}</span>
+                      <SigmaIcon className="w-2.5 h-2.5" />
+                      <span>{session.meta.tokenUsage.totalTokens}</span>
                     </div>
                     {session.lastModifiedAt && (
                       <span>

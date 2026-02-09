@@ -274,7 +274,7 @@ export const SchedulerJobDialog: FC<SchedulerJobDialogProps> = ({
                 placeholder={i18n._({
                   id: "scheduler.form.message.placeholder",
                   message:
-                    "Type message to send to Claude Code... (/ for commands, @ for files)",
+                    "Type message to send to Codex... (/ for commands, @ for files)",
                 })}
                 rows={4}
                 disabled={isSubmitting}

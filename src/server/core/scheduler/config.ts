@@ -21,7 +21,7 @@ const CONFIG_FILE = "schedules.json";
 export class SchedulerConfigBaseDir extends Context.Tag(
   "SchedulerConfigBaseDir",
 )<SchedulerConfigBaseDir, string>() {
-  static Live = Layer.succeed(this, `${homedir()}/.claude-code-viewer`);
+  static Live = Layer.succeed(this, `${homedir()}/.codex-viewer`);
 }
 
 export const getConfigPath = Effect.gen(function* () {

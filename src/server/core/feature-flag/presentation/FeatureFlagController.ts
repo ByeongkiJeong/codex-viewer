@@ -1,39 +1,38 @@
 import { Context, Effect, Layer } from "effect";
 import type { ControllerResponse } from "../../../lib/effect/toEffectResponse";
 import type { InferEffect } from "../../../lib/effect/types";
-import { ClaudeCodeService } from "../../claude-code/services/ClaudeCodeService";
+import { CodexService } from "../../codex-runtime/services/CodexService";
 import type { Flag } from "../models/flag";
 
 const LayerImpl = Effect.gen(function* () {
-  const claudeCodeService = yield* ClaudeCodeService;
+  const codexService = yield* CodexService;
 
   const getFlags = () =>
     Effect.gen(function* () {
-      const claudeCodeFeatures =
-        yield* claudeCodeService.getAvailableFeatures();
+      const codexFeatures = yield* codexService.getAvailableFeatures();
 
       return {
         response: {
           flags: [
             {
+              name: "app-server",
+              enabled: codexFeatures.appServer,
+            },
+            {
               name: "tool-approval",
-              enabled: claudeCodeFeatures.canUseTool,
+              enabled: codexFeatures.toolApproval,
             },
             {
-              name: "agent-sdk",
-              enabled: claudeCodeFeatures.agentSdk,
+              name: "session-processes",
+              enabled: codexFeatures.sessionProcesses,
             },
             {
-              name: "sidechain-separation",
-              enabled: claudeCodeFeatures.sidechainSeparation,
+              name: "mcp-server-status",
+              enabled: codexFeatures.mcpServerStatus,
             },
             {
-              name: "uuid-on-sdk-message",
-              enabled: claudeCodeFeatures.uuidOnSDKMessage,
-            },
-            {
-              name: "run-skills-directly",
-              enabled: claudeCodeFeatures.runSkillsDirectly,
+              name: "tasks",
+              enabled: codexFeatures.tasks,
             },
           ] satisfies Flag[],
         },

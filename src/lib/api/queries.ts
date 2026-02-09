@@ -110,19 +110,19 @@ export const sessionDetailQuery = (projectId: string, sessionId: string) =>
     },
   }) as const;
 
-export const claudeCommandsQuery = (projectId: string) =>
+export const codexCommandsQuery = (projectId: string) =>
   ({
-    queryKey: ["claude-commands", projectId],
+    queryKey: ["codex-commands", projectId],
     queryFn: async () => {
       const response = await honoClient.api.projects[":projectId"][
-        "claude-commands"
+        "codex-commands"
       ].$get({
         param: { projectId },
       });
 
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch claude commands: ${response.statusText}`,
+          `Failed to fetch codex commands: ${response.statusText}`,
         );
       }
 
@@ -133,9 +133,7 @@ export const claudeCommandsQuery = (projectId: string) =>
 export const sessionProcessesQuery = {
   queryKey: ["sessionProcesses"],
   queryFn: async () => {
-    const response = await honoClient.api["claude-code"][
-      "session-processes"
-    ].$get({});
+    const response = await honoClient.api.codex["session-processes"].$get({});
 
     if (!response.ok) {
       throw new Error(`Failed to fetch alive tasks: ${response.statusText}`);
@@ -227,10 +225,10 @@ export const systemVersionQuery = {
   },
 } as const;
 
-export const claudeCodeMetaQuery = {
-  queryKey: ["cc", "meta"],
+export const codexMetaQuery = {
+  queryKey: ["codex", "meta"],
   queryFn: async () => {
-    const response = await honoClient.api["claude-code"].meta.$get();
+    const response = await honoClient.api.codex.meta.$get();
 
     if (!response.ok) {
       throw new Error(
@@ -242,15 +240,13 @@ export const claudeCodeMetaQuery = {
   },
 } as const;
 
-export const claudeCodeFeaturesQuery = {
-  queryKey: ["cc", "features"],
+export const codexFeaturesQuery = {
+  queryKey: ["codex", "features"],
   queryFn: async () => {
-    const response = await honoClient.api["claude-code"].features.$get();
+    const response = await honoClient.api.codex.features.$get();
 
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch claude code features: ${response.statusText}`,
-      );
+      throw new Error(`Failed to fetch codex features: ${response.statusText}`);
     }
 
     return await response.json();
@@ -282,30 +278,6 @@ export const featureFlagsQuery = {
     return await response.json();
   },
 } as const;
-
-export const agentSessionQuery = (
-  projectId: string,
-  agentId: string,
-  sessionId?: string,
-) =>
-  ({
-    queryKey: ["projects", projectId, "agent-sessions", agentId, sessionId],
-    queryFn: async () => {
-      const response = await honoClient.api.projects[":projectId"][
-        "agent-sessions"
-      ][":agentId"].$get({
-        param: { projectId, agentId },
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch agent session: ${response.statusText}`,
-        );
-      }
-
-      return await response.json();
-    },
-  }) as const;
 
 export const searchQuery = (
   query: string,

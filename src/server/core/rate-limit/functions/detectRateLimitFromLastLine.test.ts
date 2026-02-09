@@ -84,7 +84,7 @@ describe("detectRateLimitFromLastLine", () => {
           id: "msg-1",
           type: "message",
           role: "assistant",
-          model: "claude-3-5-sonnet",
+          model: "gpt-5-codex",
           stop_reason: "end_turn",
           content: [{ type: "text", text: "Hello, how can I help?" }],
         },

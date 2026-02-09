@@ -1,9 +1,8 @@
-import { FileSystem, Path } from "@effect/platform";
 import { Context, Effect, Layer } from "effect";
 import type { ControllerResponse } from "../../../lib/effect/toEffectResponse";
 import type { InferEffect } from "../../../lib/effect/types";
-import { computeClaudeProjectFilePath } from "../../claude-code/functions/computeClaudeProjectFilePath";
-import { ClaudeCodeLifeCycleService } from "../../claude-code/services/ClaudeCodeLifeCycleService";
+import { CodexLifeCycleService } from "../../codex-runtime/services/CodexLifeCycleService";
+import { CodexSessionProcessService } from "../../codex-runtime/services/CodexSessionProcessService";
 import { ApplicationContext } from "../../platform/services/ApplicationContext";
 import { UserConfigService } from "../../platform/services/UserConfigService";
 import { SessionRepository } from "../../session/infrastructure/SessionRepository";
@@ -12,12 +11,11 @@ import { ProjectRepository } from "../infrastructure/ProjectRepository";
 
 const LayerImpl = Effect.gen(function* () {
   const projectRepository = yield* ProjectRepository;
-  const claudeCodeLifeCycleService = yield* ClaudeCodeLifeCycleService;
+  const codexLifeCycleService = yield* CodexLifeCycleService;
+  const sessionProcessService = yield* CodexSessionProcessService;
   const userConfigService = yield* UserConfigService;
   const sessionRepository = yield* SessionRepository;
-  const context = yield* ApplicationContext;
-  const fileSystem = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
+  yield* ApplicationContext;
 
   const getProjects = () =>
     Effect.gen(function* () {
@@ -125,37 +123,24 @@ const LayerImpl = Effect.gen(function* () {
     Effect.gen(function* () {
       const { projectPath } = options;
 
-      // No project validation needed - startTask will create a new project
-      // if it doesn't exist when running /init command
-      const claudeProjectFilePath = yield* computeClaudeProjectFilePath({
-        projectPath,
-        claudeProjectsDirPath: (yield* context.claudeCodePaths)
-          .claudeProjectsDirPath,
-      });
-      const projectId = encodeProjectId(claudeProjectFilePath);
-      const userConfig = yield* userConfigService.getUserConfig();
+      const projectId = encodeProjectId(projectPath);
+      yield* userConfigService.getUserConfig();
+      yield* codexLifeCycleService.ensureStarted();
 
-      // Check if CLAUDE.md exists in the project directory
-      const claudeMdPath = path.join(projectPath, "CLAUDE.md");
-      const claudeMdExists = yield* fileSystem.exists(claudeMdPath);
-
-      const result = yield* claudeCodeLifeCycleService.startSessionProcess({
+      const result = yield* sessionProcessService.startSessionProcess({
         projectId,
         cwd: projectPath,
         baseSession: undefined,
-        userConfig,
         input: {
-          text: claudeMdExists ? "describe this project" : "/init",
+          text: "describe this project",
         },
       });
-
-      const { sessionId } = yield* result.yieldSessionFileCreated();
 
       return {
         status: 201,
         response: {
           projectId,
-          sessionId,
+          sessionId: result.sessionProcess.sessionId,
         },
       } as const satisfies ControllerResponse;
     });

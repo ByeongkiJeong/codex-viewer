@@ -18,8 +18,8 @@ program
   .option("-p, --port <port>", "port to listen on")
   .option("-h, --hostname <hostname>", "hostname to listen on")
   .option("-P, --password <password>", "password to authenticate")
-  .option("-e, --executable <executable>", "path to claude code executable")
-  .option("--claude-dir <claude-dir>", "path to claude directory")
+  .option("-e, --executable <executable>", "path to codex executable")
+  .option("--codex-home <codex-home>", "path to codex home directory")
   .option(
     "--terminal-disabled",
     "disable the in-app terminal panel when enabled",

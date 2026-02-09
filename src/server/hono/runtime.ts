@@ -1,6 +1,6 @@
 import type { CommandExecutor, FileSystem, Path } from "@effect/platform";
 import { Effect } from "effect";
-import type { ClaudeCodeLifeCycleService } from "../core/claude-code/services/ClaudeCodeLifeCycleService";
+import type { CodexLifeCycleService } from "../core/codex-runtime/services/CodexLifeCycleService";
 import type { CcvOptionsService } from "../core/platform/services/CcvOptionsService";
 import type { EnvService } from "../core/platform/services/EnvService";
 import type { UserConfigService } from "../core/platform/services/UserConfigService";
@@ -18,7 +18,7 @@ export type HonoRuntime =
   | Path.Path
   | CommandExecutor.CommandExecutor
   | UserConfigService
-  | ClaudeCodeLifeCycleService
+  | CodexLifeCycleService
   | ProjectRepository
   | SchedulerConfigBaseDir;
 

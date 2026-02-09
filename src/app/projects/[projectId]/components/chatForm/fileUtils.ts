@@ -2,7 +2,7 @@ import {
   type DocumentBlockParam,
   type ImageBlockParam,
   mediaTypeSchema,
-} from "../../../../../server/core/claude-code/schema";
+} from "../../../../../server/core/codex-runtime/schema";
 
 export type FileType = "text" | "image" | "pdf";
 
