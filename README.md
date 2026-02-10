@@ -20,10 +20,17 @@ It reads Codex session JSONL files directly and provides an interactive UI for b
 ## Quick Start
 
 ```bash
-npx @kimuson/codex-viewer@latest --port 3400
+git clone https://github.com/ByeongkiJeong/codex-viewer.git
+cd codex-viewer
+corepack enable
+pnpm install
+pnpm build
+pnpm start -- --port 3400
 ```
 
 Then open `http://localhost:3400`.
+
+This fork is not published to npm. Use source build or the standalone package.
 
 ## CLI Options
 

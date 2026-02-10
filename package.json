@@ -1,14 +1,14 @@
 {
-  "name": "@kimuson/codex-viewer",
+  "name": "@byeongkijeong/codex-viewer",
   "version": "0.6.0-beta.2",
   "description": "A full-featured web-based Codex client that provides complete interactive functionality for managing Codex projects.",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/d-kimuson/codex-viewer.git"
+    "url": "https://github.com/ByeongkiJeong/codex-viewer.git"
   },
-  "homepage": "https://github.com/d-kimuson/codex-viewer",
+  "homepage": "https://github.com/ByeongkiJeong/codex-viewer",
   "files": [
     "dist"
   ],

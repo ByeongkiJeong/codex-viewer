@@ -95,7 +95,7 @@ export const checkDeprecatedEnvs = Effect.gen(function* () {
 
   yield* Console.log("For more details, see:");
   yield* Console.log(
-    "  https://github.com/d-kimuson/codex-viewer#configuration",
+    "  https://github.com/ByeongkiJeong/codex-viewer#configuration",
   );
   yield* Console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   yield* Console.log("");
