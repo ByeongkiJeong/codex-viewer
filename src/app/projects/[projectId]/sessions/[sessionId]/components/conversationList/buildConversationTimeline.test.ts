@@ -100,6 +100,118 @@ describe("buildConversationTimeline", () => {
         text: "Codex입니다.",
         timestamp: "2026-02-10T00:32:54.105Z",
       },
+      {
+        role: "system",
+        text: "[reasoning]\nthinking...",
+        timestamp: "2026-02-10T00:32:54.108Z",
+      },
+    ]);
+  });
+
+  test("includes intermediate reasoning and tool execution steps", () => {
+    const parsed = parseCodexJsonl(
+      toJsonl([
+        {
+          timestamp: "2026-02-10T01:00:00.000Z",
+          type: "event_msg",
+          payload: {
+            type: "user_message",
+            message: "중간 과정도 보여줘",
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:00:01.000Z",
+          type: "response_item",
+          payload: {
+            type: "reasoning",
+            summary: [{ type: "summary_text", text: "중간 확인 중..." }],
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:00:02.000Z",
+          type: "response_item",
+          payload: {
+            type: "function_call",
+            name: "exec_command",
+            arguments: { cmd: "pnpm test" },
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:00:03.000Z",
+          type: "response_item",
+          payload: {
+            type: "function_call_output",
+            output: "Exit code: 0\nWall time: 0.3 seconds\nOutput:\nPASS",
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:00:04.000Z",
+          type: "response_item",
+          payload: {
+            type: "custom_tool_call",
+            name: "apply_patch",
+            input: "*** Begin Patch\n*** End Patch",
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:00:05.000Z",
+          type: "response_item",
+          payload: {
+            type: "custom_tool_call_output",
+            output:
+              '{"output":"Success. Updated files","metadata":{"exit_code":0}}',
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:00:06.000Z",
+          type: "response_item",
+          payload: {
+            type: "message",
+            role: "assistant",
+            content: [{ type: "output_text", text: "최종 답변" }],
+          },
+        },
+      ]),
+    );
+
+    const timeline = buildConversationTimeline(parsed);
+
+    expect(timeline).toEqual([
+      {
+        role: "user",
+        text: "중간 과정도 보여줘",
+        timestamp: "2026-02-10T01:00:00.000Z",
+      },
+      {
+        role: "system",
+        text: "[reasoning]\n중간 확인 중...",
+        timestamp: "2026-02-10T01:00:01.000Z",
+      },
+      {
+        role: "system",
+        text: "[tool] exec_command",
+        timestamp: "2026-02-10T01:00:02.000Z",
+      },
+      {
+        role: "system",
+        text: "[tool output] Exit code: 0",
+        timestamp: "2026-02-10T01:00:03.000Z",
+      },
+      {
+        role: "system",
+        text: "[tool] apply_patch",
+        timestamp: "2026-02-10T01:00:04.000Z",
+      },
+      {
+        role: "system",
+        text: "[tool output] exit_code=0",
+        timestamp: "2026-02-10T01:00:05.000Z",
+      },
+      {
+        role: "system",
+        text: "최종 답변",
+        timestamp: "2026-02-10T01:00:06.000Z",
+      },
     ]);
   });
 
