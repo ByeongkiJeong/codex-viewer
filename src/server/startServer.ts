@@ -42,6 +42,7 @@ import { InitializeService } from "./hono/initialize";
 import { AuthMiddleware } from "./hono/middleware/auth.middleware";
 import { routes } from "./hono/routes";
 import { platformLayer } from "./lib/effect/layers";
+import { PersistentService } from "./lib/storage/FileCacheStorage/PersistentService";
 import { setupTerminalWebSocket } from "./terminal/terminalWebSocket";
 
 export const startServer = async (options: CliOptions) => {
@@ -87,7 +88,7 @@ export const startServer = async (options: CliOptions) => {
     Effect.provide(CodexSessionProcessService.Live),
     Effect.provide(CodexRpcClientService.Live),
     Effect.provide(CodexAppServerService.Live),
-    Effect.provide(SessionIndexService.Live),
+    Effect.provide(SessionIndexLayer),
     Effect.provide(PlatformLayer),
     Effect.scoped,
   );
@@ -113,7 +114,9 @@ export const startServer = async (options: CliOptions) => {
 
 const PlatformLayer = Layer.mergeAll(platformLayer, NodeContext.layer);
 
-const SessionIndexLayer = SessionIndexService.Live;
+const SessionIndexLayer = SessionIndexService.Live.pipe(
+  Layer.provideMerge(PersistentService.Live),
+);
 
 const InfraMetaLayer = Layer.mergeAll(
   ProjectMetaService.Live,

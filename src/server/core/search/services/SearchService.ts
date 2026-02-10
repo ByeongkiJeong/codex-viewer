@@ -166,7 +166,8 @@ const LayerImpl = Effect.gen(function* () {
 
   const buildIndex = () =>
     Effect.gen(function* () {
-      const sessions = yield* sessionIndexService.getSessionIndices();
+      const sessions =
+        yield* sessionIndexService.getSessionIndicesWithParsedLines();
       const miniSearch = createMiniSearchIndex();
 
       const docs: SearchDocument[] = [];

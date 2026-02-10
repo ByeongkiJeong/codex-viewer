@@ -39,10 +39,19 @@ const makeSessionIndexLayer = (
         onRead?.();
         return Effect.succeed(records);
       },
+      getSessionIndicesWithParsedLines: () => {
+        onRead?.();
+        return Effect.succeed(records);
+      },
       getSessionByThreadId: (threadId: string) =>
         Effect.succeed(
           records.find((record) => record.threadId === threadId) ?? null,
         ),
+      getSessionByThreadIdWithParsedLines: (threadId: string) =>
+        Effect.succeed(
+          records.find((record) => record.threadId === threadId) ?? null,
+        ),
+      warmSessionIndexCache: () => Effect.void,
     }),
   );
 

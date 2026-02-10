@@ -33,10 +33,16 @@ const makeSessionIndexLayer = (records: SessionIndexRecord[]) =>
     SessionIndexService,
     SessionIndexService.of({
       getSessionIndices: () => Effect.succeed(records),
+      getSessionIndicesWithParsedLines: () => Effect.succeed(records),
       getSessionByThreadId: (threadId: string) =>
         Effect.succeed(
           records.find((record) => record.threadId === threadId) ?? null,
         ),
+      getSessionByThreadIdWithParsedLines: (threadId: string) =>
+        Effect.succeed(
+          records.find((record) => record.threadId === threadId) ?? null,
+        ),
+      warmSessionIndexCache: () => Effect.void,
     }),
   );
 

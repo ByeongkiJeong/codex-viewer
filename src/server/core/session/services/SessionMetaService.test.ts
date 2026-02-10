@@ -45,6 +45,7 @@ const makeSessionIndexLayer = (options: {
     SessionIndexService,
     SessionIndexService.of({
       getSessionIndices: () => Effect.succeed([]),
+      getSessionIndicesWithParsedLines: () => Effect.succeed([]),
       getSessionByThreadId: (_threadId: string) => {
         options.onGet?.();
         return Effect.succeed(
@@ -53,6 +54,15 @@ const makeSessionIndexLayer = (options: {
             : makeSessionIndexRecord(options.record),
         );
       },
+      getSessionByThreadIdWithParsedLines: (_threadId: string) => {
+        options.onGet?.();
+        return Effect.succeed(
+          options.record === null
+            ? null
+            : makeSessionIndexRecord(options.record),
+        );
+      },
+      warmSessionIndexCache: () => Effect.void,
     }),
   );
 };

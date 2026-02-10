@@ -77,7 +77,10 @@ const runWithService = <A, E>(
       Effect.provide(
         Layer.succeed(SessionIndexService, {
           getSessionIndices: () => Effect.succeed([]),
+          getSessionIndicesWithParsedLines: () => Effect.succeed([]),
           getSessionByThreadId: () => Effect.succeed(null),
+          getSessionByThreadIdWithParsedLines: () => Effect.succeed(null),
+          warmSessionIndexCache: () => Effect.void,
         }),
       ),
       Effect.provide(rpcLayer),

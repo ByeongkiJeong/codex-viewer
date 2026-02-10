@@ -4,6 +4,7 @@ import { FileWatcherService } from "../core/events/services/fileWatcher";
 import type { InternalEventDeclaration } from "../core/events/types/InternalEventDeclaration";
 import { ProjectRepository } from "../core/project/infrastructure/ProjectRepository";
 import { ProjectMetaService } from "../core/project/services/ProjectMetaService";
+import { SessionIndexService } from "../core/session/infrastructure/SessionIndexService";
 import { SessionRepository } from "../core/session/infrastructure/SessionRepository";
 import { VirtualConversationDatabase } from "../core/session/infrastructure/VirtualConversationDatabase";
 import { SessionMetaService } from "../core/session/services/SessionMetaService";
@@ -24,6 +25,7 @@ export class InitializeService extends Context.Tag("InitializeService")<
       const fileWatcher = yield* FileWatcherService;
       const projectRepository = yield* ProjectRepository;
       const sessionRepository = yield* SessionRepository;
+      const sessionIndexService = yield* SessionIndexService;
       const projectMetaService = yield* ProjectMetaService;
       const sessionMetaService = yield* SessionMetaService;
       const virtualConversationDatabase = yield* VirtualConversationDatabase;
@@ -93,7 +95,9 @@ export class InitializeService extends Context.Tag("InitializeService")<
           yield* eventBus.on("sessionChanged", onSessionChanged);
           yield* eventBus.on("sessionProcessChanged", onSessionProcessChanged);
 
-          yield* Effect.gen(function* () {
+          const warmupCache = Effect.gen(function* () {
+            yield* sessionIndexService.warmSessionIndexCache();
+
             console.log("Initializing projects cache");
             const { projects } = yield* projectRepository.getProjects();
             console.log(`${projects.length} projects cache initialized`);
@@ -111,9 +115,11 @@ export class InitializeService extends Context.Tag("InitializeService")<
             );
             console.log(`${totalSessions} sessions cache initialized`);
           }).pipe(
-            Effect.catchAll(() => Effect.void),
+            Effect.catchAllCause(() => Effect.void),
             Effect.withSpan("initialize-cache"),
           );
+
+          yield* Effect.forkDaemon(warmupCache);
         }).pipe(Effect.withSpan("start-initialization")) as Effect.Effect<void>;
       };
 

@@ -10,6 +10,7 @@ import { EventBus } from "../core/events/services/EventBus";
 import { FileWatcherService } from "../core/events/services/fileWatcher";
 import type { InternalEventDeclaration } from "../core/events/types/InternalEventDeclaration";
 import { ProjectRepository } from "../core/project/infrastructure/ProjectRepository";
+import { SessionIndexService } from "../core/session/infrastructure/SessionIndexService";
 import { VirtualConversationDatabase } from "../core/session/infrastructure/VirtualConversationDatabase";
 import { createMockSessionMeta } from "../core/session/testing/createMockSessionMeta";
 import { InitializeService } from "./initialize";
@@ -18,9 +19,21 @@ const fileWatcherWithEventBus = FileWatcherService.Live.pipe(
   Layer.provide(EventBus.Live),
 );
 
+const sessionIndexServiceLayer = Layer.succeed(
+  SessionIndexService,
+  SessionIndexService.of({
+    getSessionIndices: () => Effect.succeed([]),
+    getSessionIndicesWithParsedLines: () => Effect.succeed([]),
+    getSessionByThreadId: () => Effect.succeed(null),
+    getSessionByThreadIdWithParsedLines: () => Effect.succeed(null),
+    warmSessionIndexCache: () => Effect.void,
+  }),
+);
+
 const allDependencies = Layer.mergeAll(
   fileWatcherWithEventBus,
   VirtualConversationDatabase.Live,
+  sessionIndexServiceLayer,
   testProjectMetaServiceLayer({
     meta: {
       projectName: "Test Project",
@@ -214,7 +227,52 @@ describe("InitializeService", () => {
   });
 
   describe("cache initialization", () => {
-    it("propagates defects from cache initialization dependencies", async () => {
+    it("starts immediately without waiting for cache warmup", async () => {
+      const mockProjectRepositoryLayer = Layer.mock(ProjectRepository, {
+        getProjects: () =>
+          Effect.gen(function* () {
+            yield* Effect.sleep("1 second");
+            return {
+              projects: [],
+            };
+          }),
+        getProject: (projectId: string) =>
+          Effect.succeed({
+            project: {
+              id: projectId,
+              projectPath: "/tmp/mock-project",
+              lastModifiedAt: new Date(),
+              meta: {
+                projectName: "mock",
+                projectPath: "/tmp/mock-project",
+                sessionCount: 0,
+              },
+            },
+          }),
+      });
+
+      const startedAt = Date.now();
+
+      const program = Effect.gen(function* () {
+        const initialize = yield* InitializeService;
+        return yield* initialize.startInitialization();
+      });
+
+      await Effect.runPromise(
+        program.pipe(
+          Effect.provide(sharedTestLayer),
+          Effect.provide(mockProjectRepositoryLayer),
+          Effect.provide(testSessionRepositoryLayer()),
+          Effect.provide(testFileSystemLayer()),
+          Effect.provide(testPlatformLayer()),
+        ),
+      );
+
+      const elapsedMs = Date.now() - startedAt;
+      expect(elapsedMs).toBeLessThan(500);
+    });
+
+    it("does not fail startup when cache warmup defects occur", async () => {
       const mockProjectRepositoryLayer = Layer.mock(ProjectRepository, {
         getProjects: () => Effect.die(new Error("Failed to get projects")),
         getProject: (projectId: string) =>
@@ -247,7 +305,7 @@ describe("InitializeService", () => {
             Effect.provide(testPlatformLayer()),
           ),
         ),
-      ).rejects.toThrow("Failed to get projects");
+      ).resolves.toBeUndefined();
     });
   });
 

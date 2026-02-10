@@ -127,6 +127,7 @@ From an `arm64` host, build a Linux `amd64` package with Docker:
 ```bash
 docker run --rm \
   --platform linux/amd64 \
+  -e CI=true \
   -v "$PWD":/work \
   -w /work \
   node:20-bookworm \

@@ -304,7 +304,7 @@ const LayerImpl = Effect.gen(function* () {
       }
 
       const sessionRecord = yield* sessionIndexService
-        .getSessionByThreadId(options.threadId)
+        .getSessionByThreadIdWithParsedLines(options.threadId)
         .pipe(Effect.catchAll(() => Effect.succeed(null)));
 
       if (
