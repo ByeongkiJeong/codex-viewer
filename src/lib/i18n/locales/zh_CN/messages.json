@@ -113,7 +113,7 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        435
+        458
       ]
     ],
     "translation": "带补全支持的消息输入"
@@ -359,7 +359,7 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        531
+        554
       ]
     ],
     "translation": "附加"
@@ -381,7 +381,7 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        399
+        421
       ]
     ],
     "translation": "发送消息失败。请重试。"
@@ -587,11 +587,11 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        488
+        511
       ],
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        578
+        601
       ]
     ],
     "translation": "立即发送"
@@ -602,11 +602,11 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        471
+        494
       ],
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        561
+        584
       ]
     ],
     "translation": "发送模式"
@@ -617,15 +617,15 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        491
+        514
       ],
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        581
+        604
       ],
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        598
+        621
       ]
     ],
     "translation": "定时发送"
@@ -636,7 +636,7 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        498
+        521
       ]
     ],
     "translation": "定时发送时间"
@@ -647,7 +647,7 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        617
+        640
       ]
     ],
     "translation": "处理中..."

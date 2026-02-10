@@ -19,6 +19,14 @@ const getString = (
   return typeof value === "string" ? value : null;
 };
 
+const normalizePayloadType = (value: string | null): string | null => {
+  if (value === null) {
+    return null;
+  }
+
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+};
+
 const normalizeWhitespace = (value: string): string => {
   return value.replace(/\s+/g, " ").trim();
 };
@@ -76,6 +84,23 @@ const extractTextFromMessageContent = (content: unknown): string => {
   return parts.join("\n").trim();
 };
 
+const extractReasoningText = (payload: Record<string, unknown>): string => {
+  const text = getString(payload, "text");
+  if (text !== null) {
+    const trimmed = text.trim();
+    if (trimmed.length > 0) {
+      return trimmed;
+    }
+  }
+
+  const summary = extractTextFromMessageContent(payload.summary);
+  if (summary.length > 0) {
+    return summary;
+  }
+
+  return extractTextFromMessageContent(payload.content);
+};
+
 const formatReasoning = (text: string): string => {
   return `[reasoning]\n${text}`.trim();
 };
@@ -91,12 +116,26 @@ const getToolName = (payload: Record<string, unknown>): string => {
     return sanitizeSensitive(toolName);
   }
 
-  const payloadType = getString(payload, "type");
-  if (payloadType === "web_search_call") {
+  const payloadType = normalizePayloadType(getString(payload, "type"));
+  if (payloadType === "websearchcall") {
     return "web_search";
   }
 
   return "tool";
+};
+
+const readExitCode = (record: Record<string, unknown>): number | null => {
+  const snakeCase = record.exit_code;
+  if (typeof snakeCase === "number") {
+    return snakeCase;
+  }
+
+  const camelCase = record.exitCode;
+  if (typeof camelCase === "number") {
+    return camelCase;
+  }
+
+  return null;
 };
 
 const summarizeToolOutput = (
@@ -125,9 +164,17 @@ const summarizeToolOutput = (
 
     const parsedJson = parseJsonRecord(trimmed);
     if (parsedJson !== null) {
+      const parsedExitCode = readExitCode(parsedJson);
+      if (parsedExitCode !== null) {
+        return `exit_code=${parsedExitCode}`;
+      }
+
       const metadata = parsedJson.metadata;
-      if (isRecord(metadata) && typeof metadata.exit_code === "number") {
-        return `exit_code=${metadata.exit_code}`;
+      if (isRecord(metadata)) {
+        const metadataExitCode = readExitCode(metadata);
+        if (metadataExitCode !== null) {
+          return `exit_code=${metadataExitCode}`;
+        }
       }
     }
 
@@ -140,9 +187,17 @@ const summarizeToolOutput = (
   }
 
   if (isRecord(output)) {
+    const outputExitCode = readExitCode(output);
+    if (outputExitCode !== null) {
+      return `exit_code=${outputExitCode}`;
+    }
+
     const metadata = output.metadata;
-    if (isRecord(metadata) && typeof metadata.exit_code === "number") {
-      return `exit_code=${metadata.exit_code}`;
+    if (isRecord(metadata)) {
+      const metadataExitCode = readExitCode(metadata);
+      if (metadataExitCode !== null) {
+        return `exit_code=${metadataExitCode}`;
+      }
     }
 
     return "output available";
@@ -178,7 +233,9 @@ export const buildConversationTimeline = (
     }
 
     if (line.type === "event_msg") {
-      if (line.payload.type === "user_message") {
+      const payloadType = normalizePayloadType(getString(line.payload, "type"));
+
+      if (payloadType === "usermessage") {
         const message = getString(line.payload, "message");
         if (message === null) {
           continue;
@@ -197,16 +254,11 @@ export const buildConversationTimeline = (
         continue;
       }
 
-      if (line.payload.type !== "agent_reasoning") {
+      if (payloadType !== "agentreasoning") {
         continue;
       }
 
-      const reasoning = getString(line.payload, "text");
-      if (reasoning === null) {
-        continue;
-      }
-
-      const text = reasoning.trim();
+      const text = extractReasoningText(line.payload);
       if (text.length === 0) {
         continue;
       }
@@ -223,7 +275,9 @@ export const buildConversationTimeline = (
       continue;
     }
 
-    if (line.payload.type === "message") {
+    const payloadType = normalizePayloadType(getString(line.payload, "type"));
+
+    if (payloadType === "message") {
       const role = getString(line.payload, "role");
       if (role === null) {
         continue;
@@ -253,8 +307,8 @@ export const buildConversationTimeline = (
       continue;
     }
 
-    if (line.payload.type === "reasoning") {
-      const text = extractTextFromMessageContent(line.payload.summary);
+    if (payloadType === "reasoning") {
+      const text = extractReasoningText(line.payload);
       if (text.length === 0) {
         continue;
       }
@@ -268,9 +322,9 @@ export const buildConversationTimeline = (
     }
 
     if (
-      line.payload.type === "function_call" ||
-      line.payload.type === "custom_tool_call" ||
-      line.payload.type === "web_search_call"
+      payloadType === "functioncall" ||
+      payloadType === "customtoolcall" ||
+      payloadType === "websearchcall"
     ) {
       const name = getToolName(line.payload);
       appendDeduplicated(entries, {
@@ -282,8 +336,9 @@ export const buildConversationTimeline = (
     }
 
     if (
-      line.payload.type === "function_call_output" ||
-      line.payload.type === "custom_tool_call_output"
+      payloadType === "functioncalloutput" ||
+      payloadType === "customtoolcalloutput" ||
+      payloadType === "websearchcalloutput"
     ) {
       const summary = summarizeToolOutput(line.payload);
       const text =

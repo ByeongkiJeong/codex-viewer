@@ -56,7 +56,7 @@ export const ConversationList: FC<ConversationListProps> = ({
             className="w-full"
           >
             <div
-              className={`max-w-3xl rounded-xl px-3 py-2 ${roleClasses[conversation.role]}`}
+              className={`max-w-[85%] rounded-xl px-3 py-2 ${roleClasses[conversation.role]}`}
             >
               <div className="mb-1 text-[10px] opacity-70">
                 {timestampForConversation(conversation.timestamp)}

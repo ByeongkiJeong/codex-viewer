@@ -215,6 +215,143 @@ describe("buildConversationTimeline", () => {
     ]);
   });
 
+  test("supports camelCase payload types and deduplicates mixed-format intermediate events", () => {
+    const parsed = parseCodexJsonl(
+      toJsonl([
+        {
+          timestamp: "2026-02-10T01:10:00.000Z",
+          type: "event_msg",
+          payload: {
+            type: "user_message",
+            message: "중간 과정 포맷 변형 테스트",
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:10:01.000Z",
+          type: "event_msg",
+          payload: {
+            type: "agentReasoning",
+            text: "변형 타입 reasoning",
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:10:01.100Z",
+          type: "event_msg",
+          payload: {
+            type: "agent_reasoning",
+            text: "변형 타입 reasoning",
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:10:02.000Z",
+          type: "response_item",
+          payload: {
+            type: "functionCall",
+            name: "exec_command",
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:10:02.050Z",
+          type: "response_item",
+          payload: {
+            type: "function_call",
+            name: "exec_command",
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:10:03.000Z",
+          type: "response_item",
+          payload: {
+            type: "functionCallOutput",
+            output: '{"metadata":{"exitCode":0}}',
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:10:04.000Z",
+          type: "response_item",
+          payload: {
+            type: "customToolCall",
+            name: "apply_patch",
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:10:05.000Z",
+          type: "response_item",
+          payload: {
+            type: "customToolCallOutput",
+            output: {
+              metadata: {
+                exitCode: 0,
+              },
+            },
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:10:06.000Z",
+          type: "response_item",
+          payload: {
+            type: "reasoning",
+            text: "summary 필드 없이 text만 있는 reasoning",
+          },
+        },
+        {
+          timestamp: "2026-02-10T01:10:07.000Z",
+          type: "response_item",
+          payload: {
+            type: "message",
+            role: "assistant",
+            content: [{ type: "output_text", text: "최종 답변" }],
+          },
+        },
+      ]),
+    );
+
+    const timeline = buildConversationTimeline(parsed);
+
+    expect(timeline).toEqual([
+      {
+        role: "user",
+        text: "중간 과정 포맷 변형 테스트",
+        timestamp: "2026-02-10T01:10:00.000Z",
+      },
+      {
+        role: "system",
+        text: "[reasoning]\n변형 타입 reasoning",
+        timestamp: "2026-02-10T01:10:01.000Z",
+      },
+      {
+        role: "system",
+        text: "[tool] exec_command",
+        timestamp: "2026-02-10T01:10:02.000Z",
+      },
+      {
+        role: "system",
+        text: "[tool output] exit_code=0",
+        timestamp: "2026-02-10T01:10:03.000Z",
+      },
+      {
+        role: "system",
+        text: "[tool] apply_patch",
+        timestamp: "2026-02-10T01:10:04.000Z",
+      },
+      {
+        role: "system",
+        text: "[tool output] exit_code=0",
+        timestamp: "2026-02-10T01:10:05.000Z",
+      },
+      {
+        role: "system",
+        text: "[reasoning]\nsummary 필드 없이 text만 있는 reasoning",
+        timestamp: "2026-02-10T01:10:06.000Z",
+      },
+      {
+        role: "system",
+        text: "최종 답변",
+        timestamp: "2026-02-10T01:10:07.000Z",
+      },
+    ]);
+  });
+
   test("keeps normal user message when event_msg.user_message does not exist", () => {
     const parsed = parseCodexJsonl(
       toJsonl([

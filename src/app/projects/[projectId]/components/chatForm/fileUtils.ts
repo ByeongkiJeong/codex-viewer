@@ -6,6 +6,12 @@ import {
 
 export type FileType = "text" | "image" | "pdf";
 
+export type ClipboardItemLike = {
+  kind: string;
+  type: string;
+  getAsFile: () => File | null;
+};
+
 /**
  * Determine file type based on MIME type
  */
@@ -37,6 +43,34 @@ export const isSupportedMimeType = (mimeType: string): boolean => {
     supportedDocumentTypes.includes(mimeType) ||
     supportedTextTypes.includes(mimeType)
   );
+};
+
+/**
+ * Extract only image files from clipboard items
+ */
+export const extractImageFilesFromClipboardItems = (
+  items: Iterable<ClipboardItemLike>,
+): File[] => {
+  const files: File[] = [];
+
+  for (const item of items) {
+    if (item.kind !== "file") {
+      continue;
+    }
+
+    if (!item.type.startsWith("image/")) {
+      continue;
+    }
+
+    const file = item.getAsFile();
+    if (file === null) {
+      continue;
+    }
+
+    files.push(file);
+  }
+
+  return files;
 };
 
 /**

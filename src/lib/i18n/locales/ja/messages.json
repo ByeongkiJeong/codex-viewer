@@ -113,7 +113,7 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        435
+        458
       ]
     ],
     "translation": "補完機能付きメッセージ入力"
@@ -359,7 +359,7 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        531
+        554
       ]
     ],
     "translation": "添付"
@@ -381,7 +381,7 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        399
+        421
       ]
     ],
     "translation": "メッセージの送信に失敗しました。もう一度お試しください。"
@@ -587,11 +587,11 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        488
+        511
       ],
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        578
+        601
       ]
     ],
     "translation": "今すぐ送信"
@@ -602,11 +602,11 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        471
+        494
       ],
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        561
+        584
       ]
     ],
     "translation": "送信モード"
@@ -617,15 +617,15 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        491
+        514
       ],
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        581
+        604
       ],
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        598
+        621
       ]
     ],
     "translation": "予約送信"
@@ -636,7 +636,7 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        498
+        521
       ]
     ],
     "translation": "送信予定時刻"
@@ -647,7 +647,7 @@
     "origin": [
       [
         "src/app/projects/[projectId]/components/chatForm/ChatInput.tsx",
-        617
+        640
       ]
     ],
     "translation": "処理中..."

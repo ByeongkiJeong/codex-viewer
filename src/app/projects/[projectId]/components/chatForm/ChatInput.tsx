@@ -38,7 +38,7 @@ import type { CommandCompletionRef } from "./CommandCompletion";
 import { getDefaultCodexTurnOptions } from "./codexOptionsFormSchema";
 import { isInCompletionContext } from "./completionUtils";
 import type { FileCompletionRef } from "./FileCompletion";
-import { processFile } from "./fileUtils";
+import { extractImageFilesFromClipboardItems, processFile } from "./fileUtils";
 import { InlineCompletion } from "./InlineCompletion";
 
 export interface MessageInput {
@@ -268,16 +268,38 @@ export const ChatInput: FC<ChatInputProps> = ({
     const files = e.target.files;
     if (!files) return;
 
-    const newFiles = Array.from(files).map((file) => ({
-      file,
-      id: `${file.name}-${Date.now()}-${Math.random()}`,
-    }));
+    const newFiles = Array.from(files).map((file) => {
+      return {
+        file,
+        id: `${file.name}-${Date.now()}-${Math.random()}`,
+      };
+    });
 
     setAttachedFiles((prev) => [...prev, ...newFiles]);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageFiles = extractImageFilesFromClipboardItems(
+      Array.from(e.clipboardData.items),
+    );
+    if (imageFiles.length === 0) {
+      return;
+    }
+
+    e.preventDefault();
+
+    const pastedFiles = imageFiles.map((file) => {
+      return {
+        file,
+        id: `${file.name}-${Date.now()}-${Math.random()}`,
+      };
+    });
+
+    setAttachedFiles((prev) => [...prev, ...pastedFiles]);
   };
 
   const handleRemoveFile = (id: string) => {
@@ -426,6 +448,7 @@ export const ChatInput: FC<ChatInputProps> = ({
                 setMessage(e.target.value);
               }}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={placeholder}
               className="resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent px-5 py-4 text-base transition-all duration-200 placeholder:text-muted-foreground/50 overflow-y-auto leading-relaxed antialiased font-normal"
               style={{
