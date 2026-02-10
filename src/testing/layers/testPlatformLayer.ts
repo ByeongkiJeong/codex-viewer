@@ -74,7 +74,7 @@ export const testPlatformLayer = (overrides?: {
         unifySameTitleSession:
           overrides?.userConfig?.unifySameTitleSession ?? true,
         enterKeyBehavior:
-          overrides?.userConfig?.enterKeyBehavior ?? "shift-enter-send",
+          overrides?.userConfig?.enterKeyBehavior ?? "enter-send",
         permissionMode: overrides?.userConfig?.permissionMode ?? "default",
         locale: overrides?.userConfig?.locale ?? DEFAULT_LOCALE,
         theme: overrides?.userConfig?.theme ?? "system",

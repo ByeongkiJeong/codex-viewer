@@ -161,7 +161,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        332
+        329
       ]
     ],
     "translation": "Select Language"
@@ -172,7 +172,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        289
+        286
       ]
     ],
     "translation": "Select Permission Mode"
@@ -183,7 +183,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        256
+        253
       ]
     ],
     "translation": "Select Search Hotkey"
@@ -194,7 +194,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        361
+        358
       ]
     ],
     "translation": "Select Theme"
@@ -877,17 +877,6 @@
       ]
     ],
     "translation": "Session ID"
-  },
-  "conversation.error.schema": {
-    "placeholders": {},
-    "comments": [],
-    "origin": [
-      [
-        "src/app/projects/[projectId]/sessions/[sessionId]/components/conversationList/ConversationList.tsx",
-        208
-      ]
-    ],
-    "translation": "Schema Error"
   },
   "cron_builder.cron_expression": {
     "placeholders": {},
@@ -2605,7 +2594,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        231
+        228
       ]
     ],
     "translation": "Send with Command+Enter"
@@ -2616,7 +2605,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        237
+        234
       ]
     ],
     "translation": "Select Enter key behavior for message input"
@@ -2627,21 +2616,10 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        228
-      ]
-    ],
-    "translation": "Send with Enter"
-  },
-  "settings.input.enter_key_behavior.shift_enter": {
-    "placeholders": {},
-    "comments": [],
-    "origin": [
-      [
-        "src/components/SettingsControls.tsx",
         225
       ]
     ],
-    "translation": "Send with Shift+Enter (Default)"
+    "translation": "Send with Enter"
   },
   "settings.input.search_hotkey": {
     "placeholders": {},
@@ -2649,7 +2627,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        248
+        245
       ]
     ],
     "translation": "Search Hotkey"
@@ -2660,7 +2638,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        263
+        260
       ]
     ],
     "translation": "Command+K"
@@ -2671,7 +2649,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        260
+        257
       ]
     ],
     "translation": "Ctrl+K"
@@ -2682,7 +2660,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        269
+        266
       ]
     ],
     "translation": "Select the hotkey to open search dialog"
@@ -2708,7 +2686,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        324
+        321
       ]
     ],
     "translation": "Language"
@@ -2719,7 +2697,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        348
+        345
       ]
     ],
     "translation": "Select your preferred language"
@@ -2730,7 +2708,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        339
+        336
       ]
     ],
     "translation": "English"
@@ -2741,7 +2719,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        336
+        333
       ]
     ],
     "translation": "Japanese"
@@ -2752,7 +2730,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        342
+        339
       ]
     ],
     "translation": "Chinese (Simplified)"
@@ -2774,7 +2752,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        280
+        277
       ]
     ],
     "translation": "Permission Mode"
@@ -2785,7 +2763,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        296
+        293
       ]
     ],
     "translation": "Accept Edits (Auto-approve file edits)"
@@ -2796,7 +2774,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        299
+        296
       ]
     ],
     "translation": "Bypass Permissions (No prompts)"
@@ -2807,7 +2785,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        293
+        290
       ]
     ],
     "translation": "Default (Confirm Permissions)"
@@ -2818,7 +2796,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        308
+        305
       ]
     ],
     "translation": "Control how file operation permission requests are handled"
@@ -2829,7 +2807,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        302
+        299
       ]
     ],
     "translation": "Plan Mode (Planning only)"
@@ -2840,7 +2818,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        313
+        310
       ]
     ],
     "translation": "This feature is not available in your Codex version. All tools are automatically approved."
@@ -2976,7 +2954,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        356
+        353
       ]
     ],
     "translation": "Theme"
@@ -2987,7 +2965,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        368
+        365
       ]
     ],
     "translation": "Dark"
@@ -2998,7 +2976,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        377
+        374
       ]
     ],
     "translation": "Select your preferred color theme"
@@ -3009,7 +2987,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        365
+        362
       ]
     ],
     "translation": "Light"
@@ -3020,7 +2998,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        371
+        368
       ]
     ],
     "translation": "System"

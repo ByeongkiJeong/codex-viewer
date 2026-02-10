@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isInternalBootstrapMessage } from "./isInternalBootstrapMessage";
 
 const codexTopLevelTypeSchema = z.enum([
   "session_meta",
@@ -113,6 +114,13 @@ const userMessagePayloadSchema = z
     type: z.literal("message"),
     role: z.literal("user"),
     content: z.array(userMessageContentItemSchema).optional(),
+  })
+  .passthrough();
+
+const userMessageEventPayloadSchema = z
+  .object({
+    type: z.literal("user_message"),
+    message: z.string(),
   })
   .passthrough();
 
@@ -244,33 +252,60 @@ export const extractFirstUserInputText = (
   lines: readonly ParsedCodexLine[],
 ): string | null => {
   for (const line of lines) {
-    if (line.type !== "response_item") {
+    const text =
+      line.type === "response_item"
+        ? extractTextFromUserResponseItem(line.payload)
+        : line.type === "event_msg"
+          ? extractTextFromUserMessageEvent(line.payload)
+          : null;
+
+    if (text === null || isInternalBootstrapMessage(text)) {
       continue;
     }
 
-    const parsedPayload = userMessagePayloadSchema.safeParse(line.payload);
-    if (!parsedPayload.success) {
+    return text;
+  }
+
+  return null;
+};
+
+const extractTextFromUserResponseItem = (payload: unknown): string | null => {
+  const parsedPayload = userMessagePayloadSchema.safeParse(payload);
+  if (!parsedPayload.success) {
+    return null;
+  }
+
+  const messageContent = parsedPayload.data.content;
+  if (!messageContent || messageContent.length === 0) {
+    return null;
+  }
+
+  for (const item of messageContent) {
+    if (item.type !== "input_text") {
       continue;
     }
 
-    const messageContent = parsedPayload.data.content;
-    if (!messageContent || messageContent.length === 0) {
-      continue;
-    }
-
-    for (const item of messageContent) {
-      if (item.type !== "input_text") {
-        continue;
-      }
-
-      const text = item.text?.trim();
-      if (text && text.length > 0) {
-        return text;
-      }
+    const text = item.text?.trim();
+    if (text && text.length > 0) {
+      return text;
     }
   }
 
   return null;
+};
+
+const extractTextFromUserMessageEvent = (payload: unknown): string | null => {
+  const parsedPayload = userMessageEventPayloadSchema.safeParse(payload);
+  if (!parsedPayload.success) {
+    return null;
+  }
+
+  const text = parsedPayload.data.message.trim();
+  if (text.length === 0) {
+    return null;
+  }
+
+  return text;
 };
 
 export const extractLatestModelName = (

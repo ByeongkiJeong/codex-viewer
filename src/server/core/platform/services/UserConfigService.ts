@@ -7,7 +7,7 @@ const LayerImpl = Effect.gen(function* () {
   const configRef = yield* Ref.make<UserConfig>({
     hideNoUserMessageSession: true,
     unifySameTitleSession: false,
-    enterKeyBehavior: "shift-enter-send",
+    enterKeyBehavior: "enter-send",
     permissionMode: "default",
     locale: DEFAULT_LOCALE,
     theme: "system",

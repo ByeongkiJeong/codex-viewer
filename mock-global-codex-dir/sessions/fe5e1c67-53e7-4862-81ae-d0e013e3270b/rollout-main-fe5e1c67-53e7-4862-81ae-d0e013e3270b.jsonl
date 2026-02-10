@@ -1,0 +1,9 @@
+{"timestamp":"2026-01-01T10:00:00.000Z","type":"session_meta","payload":{"id":"fe5e1c67-53e7-4862-81ae-d0e013e3270b","timestamp":"2026-01-01T10:00:00.000Z","cwd":"/path/to/Demo","source":"cli","model_provider":"openai","cli_version":"0.72.0"}}
+{"timestamp":"2026-01-01T10:00:01.000Z","type":"turn_context","payload":{"cwd":"/path/to/Demo","model":"gpt-5-codex","approval_policy":"on-request","sandbox_policy":{"type":"workspace-write"},"summary":"auto"}}
+{"timestamp":"2026-01-01T10:00:02.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Summarize this repository status."}]}}
+{"timestamp":"2026-01-01T10:00:03.000Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Codex Viewer migration is active and tests are passing."}]}}
+{"timestamp":"2026-01-01T10:00:04.000Z","type":"response_item","payload":{"type":"reasoning","summary":[{"type":"summary_text","text":"Checked status, verification gates, and remaining cleanup."}]}}
+{"timestamp":"2026-01-01T10:00:05.000Z","type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":{"cmd":"pnpm test"}}}
+{"timestamp":"2026-01-01T10:00:06.000Z","type":"response_item","payload":{"type":"function_call_output","output":{"exitCode":0,"summary":"All tests passed"}}}
+{"timestamp":"2026-01-01T10:00:07.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":120,"cached_input_tokens":20,"output_tokens":35,"reasoning_output_tokens":10,"total_tokens":185}}}}
+{"timestamp":"2026-01-01T10:00:08.000Z","type":"compacted","payload":{"summary":"compacted"}}

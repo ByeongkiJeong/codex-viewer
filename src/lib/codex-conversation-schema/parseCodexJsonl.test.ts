@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { extractLatestTokenUsage, parseCodexJsonl } from "./parseCodexJsonl";
+import {
+  extractFirstUserInputText,
+  extractLatestTokenUsage,
+  parseCodexJsonl,
+} from "./parseCodexJsonl";
 
 const buildSampleJsonl = () => {
   return [
@@ -154,5 +158,78 @@ describe("extractLatestTokenUsage", () => {
       reasoningOutputTokens: 0,
       totalTokens: 0,
     });
+  });
+});
+
+describe("extractFirstUserInputText", () => {
+  test("returns first real user input instead of bootstrap instructions", () => {
+    const jsonl = [
+      JSON.stringify({
+        timestamp: "2026-02-10T00:32:50.080Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: "# AGENTS.md instructions for /tmp\n\n<INSTRUCTIONS>...</INSTRUCTIONS>",
+            },
+          ],
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-02-10T00:32:50.080Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: "<environment_context>\n  <cwd>/tmp</cwd>\n</environment_context>",
+            },
+          ],
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-02-10T00:32:50.080Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "실제 첫 질문" }],
+        },
+      }),
+    ].join("\n");
+
+    const result = extractFirstUserInputText(parseCodexJsonl(jsonl));
+
+    expect(result).toBe("실제 첫 질문");
+  });
+
+  test("uses user_message event when response_item user message is missing", () => {
+    const jsonl = [
+      JSON.stringify({
+        timestamp: "2026-02-10T00:32:50.080Z",
+        type: "event_msg",
+        payload: {
+          type: "token_count",
+          info: null,
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-02-10T00:32:50.080Z",
+        type: "event_msg",
+        payload: {
+          type: "user_message",
+          message: "event only question",
+        },
+      }),
+    ].join("\n");
+
+    const result = extractFirstUserInputText(parseCodexJsonl(jsonl));
+
+    expect(result).toBe("event only question");
   });
 });

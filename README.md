@@ -25,7 +25,7 @@ cd codex-viewer
 corepack enable
 pnpm install
 pnpm build
-pnpm start -- --port 3400
+pnpm start --port 3400
 ```
 
 Then open `http://localhost:3400`.

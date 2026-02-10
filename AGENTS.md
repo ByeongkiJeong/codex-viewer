@@ -42,7 +42,7 @@ Conventional Commits format: `type: description`
 
 ## Project Overview
 
-Claude Code Viewer reads Claude Code session logs directly from JSONL files (`~/.claude/projects/`) with zero data loss. It's a web-based client built as a CLI tool serving a Vite application.
+Codex Viewer reads Codex session logs directly from JSONL files (`~/.codex/sessions/`) with zero data loss. It's a web-based client built as a CLI tool serving a Vite application.
 
 **Core Architecture**:
 - Frontend: Vite + TanStack Router + React 19 + TanStack Query
@@ -172,16 +172,16 @@ Raw `fetch` and direct requests are prohibited.
 
 ### Data Layer
 
-- **Single Source of Truth**: `~/.claude/projects/*.jsonl`
-- **Cache**: `~/.claude-code-viewer/` (invalidated via SSE when source changes)
+- **Single Source of Truth**: `~/.codex/sessions/**/rollout-*.jsonl`
+- **Cache**: `~/.codex-viewer/` (invalidated via SSE when source changes)
 - **Validation**: Strict Zod schemas ensure every field is captured
 
 ### Session Process Management
 
-Claude Code processes remain alive in the background (unless aborted), allowing session continuation without changing session-id.
+Codex processes remain alive in the background (unless aborted), allowing session continuation without changing session-id.
 
 ## Development Tips
 
-1. **Session Logs**: Examine `~/.claude/projects/` JSONL files to understand data structures
-2. **Mock Data**: `mock-global-claude-dir/` contains E2E test mocks (useful reference for schema examples)
+1. **Session Logs**: Examine `~/.codex/sessions/` rollout JSONL files to understand data structures
+2. **Mock Data**: `mock-global-codex-dir/` contains E2E test mocks (useful reference for schema examples)
 3. **Effect-TS Help**: https://effect.website/llms.txt

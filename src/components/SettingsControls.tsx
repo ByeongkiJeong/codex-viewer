@@ -214,16 +214,13 @@ export const SettingsControls: FC<SettingsControlsProps> = ({
           </label>
         )}
         <Select
-          value={config?.enterKeyBehavior || "shift-enter-send"}
+          value={config?.enterKeyBehavior || "enter-send"}
           onValueChange={handleEnterKeyBehaviorChange}
         >
           <SelectTrigger id={enterKeyBehaviorId} className="w-full">
             <SelectValue placeholder={i18n._("Select enter key behavior")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="shift-enter-send">
-              <Trans id="settings.input.enter_key_behavior.shift_enter" />
-            </SelectItem>
             <SelectItem value="enter-send">
               <Trans id="settings.input.enter_key_behavior.enter" />
             </SelectItem>

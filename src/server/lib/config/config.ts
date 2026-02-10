@@ -7,7 +7,7 @@ export const userConfigSchema = z.object({
   enterKeyBehavior: z
     .enum(["shift-enter-send", "enter-send", "command-enter-send"])
     .optional()
-    .default("shift-enter-send"),
+    .default("enter-send"),
   permissionMode: z
     .enum(["acceptEdits", "bypassPermissions", "default", "plan"])
     .optional()

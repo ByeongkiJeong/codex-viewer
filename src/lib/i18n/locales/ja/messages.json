@@ -161,7 +161,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        332
+        329
       ]
     ],
     "translation": "言語を選択"
@@ -172,7 +172,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        289
+        286
       ]
     ],
     "translation": "権限モードを選択"
@@ -183,7 +183,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        256
+        253
       ]
     ],
     "translation": "検索ホットキーを選択"
@@ -194,7 +194,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        361
+        358
       ]
     ],
     "translation": "テーマを選択"
@@ -877,17 +877,6 @@
       ]
     ],
     "translation": "セッションID"
-  },
-  "conversation.error.schema": {
-    "placeholders": {},
-    "comments": [],
-    "origin": [
-      [
-        "src/app/projects/[projectId]/sessions/[sessionId]/components/conversationList/ConversationList.tsx",
-        208
-      ]
-    ],
-    "translation": "スキーマエラー"
   },
   "cron_builder.cron_expression": {
     "placeholders": {},
@@ -2605,7 +2594,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        231
+        228
       ]
     ],
     "translation": "Command+Enterで送信"
@@ -2616,7 +2605,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        237
+        234
       ]
     ],
     "translation": "メッセージ入力でのEnterキーの動作を選択"
@@ -2627,21 +2616,10 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        228
-      ]
-    ],
-    "translation": "Enterで送信"
-  },
-  "settings.input.enter_key_behavior.shift_enter": {
-    "placeholders": {},
-    "comments": [],
-    "origin": [
-      [
-        "src/components/SettingsControls.tsx",
         225
       ]
     ],
-    "translation": "Shift+Enterで送信（デフォルト）"
+    "translation": "Enterで送信"
   },
   "settings.input.search_hotkey": {
     "placeholders": {},
@@ -2649,7 +2627,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        248
+        245
       ]
     ],
     "translation": "検索ホットキー"
@@ -2660,7 +2638,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        263
+        260
       ]
     ],
     "translation": "Command+K"
@@ -2671,7 +2649,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        260
+        257
       ]
     ],
     "translation": "Ctrl+K"
@@ -2682,7 +2660,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        269
+        266
       ]
     ],
     "translation": "検索ダイアログを開くホットキーを選択します"
@@ -2708,7 +2686,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        324
+        321
       ]
     ],
     "translation": "言語"
@@ -2719,7 +2697,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        348
+        345
       ]
     ],
     "translation": "お好みの言語を選択"
@@ -2730,7 +2708,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        339
+        336
       ]
     ],
     "translation": "English"
@@ -2741,7 +2719,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        336
+        333
       ]
     ],
     "translation": "日本語"
@@ -2752,7 +2730,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        342
+        339
       ]
     ],
     "translation": "中国語（簡体字）"
@@ -2774,7 +2752,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        280
+        277
       ]
     ],
     "translation": "権限モード"
@@ -2785,7 +2763,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        296
+        293
       ]
     ],
     "translation": "編集を承認（ファイル編集を自動承認）"
@@ -2796,7 +2774,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        299
+        296
       ]
     ],
     "translation": "権限をバイパス（プロンプトなし）"
@@ -2807,7 +2785,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        293
+        290
       ]
     ],
     "translation": "デフォルト（権限を確認）"
@@ -2818,7 +2796,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        308
+        305
       ]
     ],
     "translation": "ファイル操作の権限リクエストの処理方法を制御"
@@ -2829,7 +2807,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        302
+        299
       ]
     ],
     "translation": "プランモード（計画のみ）"
@@ -2840,7 +2818,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        313
+        310
       ]
     ],
     "translation": "お使いのCodexバージョンではこの機能は利用できません。すべてのツールは自動で承認されます。"
@@ -2976,7 +2954,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        356
+        353
       ]
     ],
     "translation": "テーマ"
@@ -2987,7 +2965,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        368
+        365
       ]
     ],
     "translation": "ダーク"
@@ -2998,7 +2976,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        377
+        374
       ]
     ],
     "translation": "お好みのカラーテーマを選択"
@@ -3009,7 +2987,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        365
+        362
       ]
     ],
     "translation": "ライト"
@@ -3020,7 +2998,7 @@
     "origin": [
       [
         "src/components/SettingsControls.tsx",
-        371
+        368
       ]
     ],
     "translation": "システム"
